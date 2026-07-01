@@ -83,3 +83,16 @@ document.getElementById('save').addEventListener('click', () => {
     );
   });
 });
+
+document.getElementById('resetProxy').addEventListener('click', () => {
+  statusEl.textContent = 'Resetting proxy...';
+  chrome.runtime.sendMessage({ type: 'resetProxy' }, (response) => {
+    if (chrome.runtime.lastError || !response?.ok) {
+      statusEl.textContent =
+        response?.error || chrome.runtime.lastError?.message || 'Reset failed.';
+      return;
+    }
+    statusEl.textContent = 'Proxy reset. Try browsing again (restart Chrome if still no 407).';
+    renderStatus(response);
+  });
+});

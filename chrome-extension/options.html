@@ -25,7 +25,10 @@
       <option value="https">https (when proxy TLS is enabled)</option>
     </select>
     <label for="proxyHost">Proxy host</label>
-    <input id="proxyHost" type="text" />
+    <input id="proxyHost" type="text" placeholder="proxy.example.com" />
+    <p style="font-size:11px;color:#666;margin:4px 0 0;">
+      Hostname only — no <code>http://</code>, no port, no username/password.
+    </p>
     <label for="proxyPort">Proxy port</label>
     <input id="proxyPort" type="number" />
     <button id="save">Save</button>
@@ -39,6 +42,7 @@
       If curl gets <strong>403</strong> instead of 407, your client IP may be blocked
       in <code>allowedClientIps</code> on the server.
     </p>
+    <script src="rules.js"></script>
     <script src="options.js"></script>
   </body>
 </html>

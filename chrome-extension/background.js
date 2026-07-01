@@ -49,10 +49,18 @@ function getConfig() {
 }
 
 function syncCachedConfig(cfg) {
-  cachedConfig.sessionId = cfg.sessionId || '';
-  cachedConfig.proxyHost = normalizeProxyHost(cfg.proxyHost || DEFAULT_PROXY.host);
-  cachedConfig.proxyPort = parseInt(cfg.proxyPort, 10) || DEFAULT_PROXY.port;
-  cachedConfig.proxyScheme = cfg.proxyScheme || DEFAULT_PROXY.scheme;
+  try {
+    const parsed = parseProxySettings(cfg.proxyHost, cfg.proxyPort, cfg.proxyScheme);
+    cachedConfig.sessionId = cfg.sessionId || '';
+    cachedConfig.proxyHost = parsed.proxyHost;
+    cachedConfig.proxyPort = parsed.proxyPort;
+    cachedConfig.proxyScheme = parsed.proxyScheme;
+  } catch (_err) {
+    cachedConfig.sessionId = cfg.sessionId || '';
+    cachedConfig.proxyHost = DEFAULT_PROXY.host;
+    cachedConfig.proxyPort = DEFAULT_PROXY.port;
+    cachedConfig.proxyScheme = DEFAULT_PROXY.scheme;
+  }
 }
 
 function normalizeProxyHost(host) {
@@ -279,16 +287,30 @@ async function readActiveProxySettings() {
 }
 
 async function applyProxySettings() {
-  const { proxyHost, proxyPort, proxyScheme } = cachedConfig;
-  const host = normalizeProxyHost(proxyHost);
-  const port = parseInt(proxyPort, 10) || DEFAULT_PROXY.port;
+  let parsed;
+  try {
+    parsed = parseProxySettings(
+      cachedConfig.proxyHost,
+      cachedConfig.proxyPort,
+      cachedConfig.proxyScheme
+    );
+  } catch (err) {
+    pushEvent('proxyInvalid', err.message);
+    throw err;
+  }
+
+  const { proxyHost: host, proxyPort: port, proxyScheme } = parsed;
+  cachedConfig.proxyHost = host;
+  cachedConfig.proxyPort = port;
+  cachedConfig.proxyScheme = proxyScheme;
+
   const config = {
     mode: 'fixed_servers',
     rules: {
       singleProxy: {
-        scheme: proxyScheme === 'https' ? 'https' : 'http',
+        scheme: proxyScheme,
         host,
-        port,
+        port: Number(port),
       },
       bypassList: ['<local>'],
     },
