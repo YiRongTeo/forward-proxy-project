@@ -57,6 +57,25 @@ valkey-cli SET 'session:session1234' \
   EX 3600
 ```
 
+Session values **must be valid JSON** with quoted keys. Common mistakes that cause `invalid character 'd' looking for beginning of object key string`:
+
+```bash
+# Wrong — unquoted keys
+{domain:"google.com"}
+
+# Wrong — plain domain string
+google.com
+
+# Correct
+{"domain":"google.com","createdAt":"2026-07-01T12:00:00Z","metadata":{}}
+```
+
+Inspect what is stored:
+
+```bash
+valkey-cli GET session:session1234
+```
+
 The proxy admin API only supports **read** operations: `GET /health` and `GET /sessions/:id`. `POST`/`DELETE` return `405`.
 
 ## Chrome Extension Setup

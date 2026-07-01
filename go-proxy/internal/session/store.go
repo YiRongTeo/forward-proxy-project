@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -83,7 +84,11 @@ func (s *Store) GetSession(ctx context.Context, id string) (*Session, error) {
 	}
 	var session Session
 	if err := json.Unmarshal([]byte(raw), &session); err != nil {
-		return nil, err
+		return nil, fmt.Errorf(
+			"invalid session JSON at %q: %w (expected {\"domain\":\"example.com\",\"createdAt\":\"2026-01-01T00:00:00Z\",\"metadata\":{}})",
+			s.key(id),
+			err,
+		)
 	}
 	s.setCache(id, session)
 	return &session, nil

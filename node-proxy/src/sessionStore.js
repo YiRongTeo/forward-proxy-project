@@ -41,7 +41,15 @@ class SessionStore {
     const raw = await this.client.get(this.key(id));
     if (!raw) return null;
 
-    const session = JSON.parse(raw);
+    let session;
+    try {
+      session = JSON.parse(raw);
+    } catch (err) {
+      throw new Error(
+        `invalid session JSON at ${this.key(id)}: ${err.message} ` +
+          '(expected {"domain":"example.com","createdAt":"2026-01-01T00:00:00Z","metadata":{}})'
+      );
+    }
     this.setCache(id, session);
     return session;
   }
