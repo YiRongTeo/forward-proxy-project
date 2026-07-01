@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"go-proxy/internal/config"
 )
 
 type Session struct {
@@ -16,10 +17,11 @@ type Session struct {
 }
 
 type Store struct {
-	client   *redis.Client
-	cache    map[string]cacheEntry
-	cacheMu  sync.RWMutex
-	cacheTTL time.Duration
+	client         *redis.Client
+	mode           string
+	cache          map[string]cacheEntry
+	cacheMu        sync.RWMutex
+	cacheTTL       time.Duration
 }
 
 type cacheEntry struct {
@@ -27,16 +29,21 @@ type cacheEntry struct {
 	expiresAt time.Time
 }
 
-func NewStore(valkeyURL string) (*Store, error) {
-	opt, err := redis.ParseURL(valkeyURL)
+func NewStore(valkey config.Valkey) (*Store, error) {
+	client, err := NewValkeyClient(valkey)
 	if err != nil {
 		return nil, err
 	}
 	return &Store{
-		client:   redis.NewClient(opt),
+		client:   client,
+		mode:     ConnectionMode(valkey),
 		cache:    make(map[string]cacheEntry),
 		cacheTTL: 30 * time.Second,
 	}, nil
+}
+
+func (s *Store) ConnectionMode() string {
+	return s.mode
 }
 
 func (s *Store) key(id string) string {

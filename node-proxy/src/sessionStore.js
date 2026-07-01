@@ -1,14 +1,10 @@
 'use strict';
 
-const IoValkey = require('iovalkey');
+const { createValkeyClient } = require('./valkeyClient');
 
 class SessionStore {
   constructor(options) {
-    this.client = new IoValkey(options.valkeyUrl, {
-      enableReadyCheck: false,
-      maxRetriesPerRequest: 3,
-      lazyConnect: false,
-    });
+    this.client = createValkeyClient(options.valkey);
     this.cache = new Map();
     this.cacheTtlMs = options.cacheTtlMs || 30000;
   }

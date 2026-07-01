@@ -3,6 +3,7 @@
 const http = require('http');
 const { loadConfig } = require('./config');
 const { SessionStore } = require('./sessionStore');
+const { useSentinel } = require('./valkeyClient');
 const { createAllowlist } = require('./ipAllowlist');
 const { createProxyHandler, handleConnect } = require('./proxyHandler');
 const { createAdminServer } = require('./admin');
@@ -11,7 +12,12 @@ const { loadTlsOptions, createServer } = require('./tls');
 const config = loadConfig();
 const tlsOptions = loadTlsOptions(config.tls);
 
-const sessionStore = new SessionStore({ valkeyUrl: config.valkeyUrl });
+const valkeyMode = useSentinel(config.valkey)
+  ? `sentinel:${config.valkey.sentinel.masterName}`
+  : `direct:${config.valkey.url}`;
+console.log(JSON.stringify({ msg: 'valkey configured', mode: valkeyMode }));
+
+const sessionStore = new SessionStore({ valkey: config.valkey });
 const allowlist = createAllowlist(config.allowedClientIps);
 
 const proxyOptions = {

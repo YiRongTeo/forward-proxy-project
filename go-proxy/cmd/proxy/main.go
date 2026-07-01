@@ -46,10 +46,11 @@ func main() {
 
 	tls := tlsconfig.Load(cfg.TLS)
 
-	store, err := session.NewStore(cfg.ValkeyURL)
+	store, err := session.NewStore(cfg.Valkey)
 	if err != nil {
 		log.Fatal(err)
 	}
+	log.Printf(`{"msg":"valkey connected","mode":%q}`, store.ConnectionMode())
 
 	allow, err := allowlist.Parse(cfg.AllowedClientIps)
 	if err != nil {

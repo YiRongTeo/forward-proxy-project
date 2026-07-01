@@ -4,7 +4,10 @@ const fs = require('fs');
 const path = require('path');
 
 const DEFAULTS = {
-  valkeyUrl: 'redis://127.0.0.1:6379',
+  valkey: {
+    url: 'redis://127.0.0.1:6379',
+    sentinel: null,
+  },
   proxyPort: 8080,
   adminPort: 3001,
   proxyTimeoutMs: 30000,
@@ -16,6 +19,26 @@ const DEFAULTS = {
     keyFile: '',
   },
 };
+
+function parseValkeyConfig(parsed) {
+  const sentinelInput = parsed.valkeySentinel;
+  let sentinel = null;
+
+  if (sentinelInput && sentinelInput.masterName && Array.isArray(sentinelInput.sentinels)) {
+    sentinel = {
+      masterName: String(sentinelInput.masterName),
+      sentinels: sentinelInput.sentinels.map(String),
+      password: sentinelInput.password || '',
+      sentinelPassword: sentinelInput.sentinelPassword || '',
+      db: sentinelInput.db !== undefined ? Number(sentinelInput.db) : 0,
+    };
+  }
+
+  return {
+    url: parsed.valkeyUrl || DEFAULTS.valkey.url,
+    sentinel,
+  };
+}
 
 function resolveConfigPath() {
   const argIndex = process.argv.indexOf('--config');
@@ -49,7 +72,7 @@ function loadConfig(configPath) {
 
   return {
     configPath: filePath,
-    valkeyUrl: parsed.valkeyUrl || DEFAULTS.valkeyUrl,
+    valkey: parseValkeyConfig(parsed),
     proxyPort: Number(parsed.proxyPort || DEFAULTS.proxyPort),
     adminPort: Number(parsed.adminPort || DEFAULTS.adminPort),
     proxyTimeoutMs: Number(parsed.proxyTimeoutMs || DEFAULTS.proxyTimeoutMs),
@@ -63,4 +86,4 @@ function loadConfig(configPath) {
   };
 }
 
-module.exports = { loadConfig, resolveConfigPath, DEFAULTS };
+module.exports = { loadConfig, resolveConfigPath, DEFAULTS, parseValkeyConfig };

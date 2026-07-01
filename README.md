@@ -175,6 +175,39 @@ Config lookup order when `--config` / `-config` is omitted:
 2. `./config.json`
 3. `./config/node-proxy.json` or `./config/go-proxy.json`
 
+### Valkey Sentinel
+
+When `valkeySentinel` is set with `masterName` and `sentinels`, both proxies connect via **Sentinel failover** instead of a direct `valkeyUrl`. The URL is still used as a fallback label and for tooling (e.g. session seeding).
+
+```json
+{
+  "valkeyUrl": "redis://valkey-master:6379",
+  "valkeySentinel": {
+    "masterName": "valkey-master",
+    "sentinels": [
+      "sentinel-1:26379",
+      "sentinel-2:26379",
+      "sentinel-3:26379"
+    ],
+    "password": "",
+    "sentinelPassword": "",
+    "db": 0
+  }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `masterName` | Sentinel-monitored master name |
+| `sentinels` | Sentinel addresses (`host:port`, default port 26379) |
+| `password` | Valkey master password (optional) |
+| `sentinelPassword` | Sentinel auth password (optional) |
+| `db` | Database index (default `0`) |
+
+Full examples: [`config/node-proxy.sentinel.example.json`](config/node-proxy.sentinel.example.json), [`config/go-proxy.sentinel.example.json`](config/go-proxy.sentinel.example.json).
+
+On startup, logs include the active mode, e.g. `{"msg":"valkey configured","mode":"sentinel:valkey-master"}`.
+
 ## Benchmarks
 
 ```bash
@@ -201,8 +234,10 @@ Compare Node (`8080`) vs Go (`8081`) using RPS, p99 latency, and 403 rates on de
 
 ```
 ├── config/
-│   ├── node-proxy.json   # Node proxy config
-│   └── go-proxy.json     # Go proxy config
+│   ├── node-proxy.json                  # Node proxy config (direct Valkey)
+│   ├── go-proxy.json                    # Go proxy config (direct Valkey)
+│   ├── node-proxy.sentinel.example.json # Sentinel example (Node)
+│   └── go-proxy.sentinel.example.json   # Sentinel example (Go)
 ├── docker-compose.yml
 ├── chrome-extension/     # Chrome MV3 extension
 ├── node-proxy/           # Node.js forward proxy
