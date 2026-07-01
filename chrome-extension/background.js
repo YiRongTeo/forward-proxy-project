@@ -98,7 +98,13 @@ function recentAuthSummary() {
 
 function tunnelFailureHint(summary) {
   if (!summary.hadOnAuth) {
-    return 'no onAuthRequired — check proxy host/port/scheme or TCP reachability';
+    return [
+      'Chrome never received proxy 407',
+      'check extension scheme http vs https matches proxy TLS',
+      'check host/port/firewall',
+      'if Chrome is on another machine add its IP to allowedClientIps',
+      'test: curl -v -x http://HOST:PORT https://example.com -I without -U should show 407',
+    ].join(' | ');
   }
   if (summary.hadAuthSkipped) {
     return 'session empty — save session ID in popup';
