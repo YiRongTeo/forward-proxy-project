@@ -128,6 +128,17 @@ curl -s http://127.0.0.1:9001/health | jq .
 curl -s http://127.0.0.1:9001/sessions/session1234 | jq .
 ```
 
+Seed a session without shell quote problems:
+
+```bash
+./benchmarks/seed-one.sh session1234 google.com /etc/go-proxy/config.json
+
+# Or pipe JSON with -x (never pass bare JSON as separate shell words)
+printf '%s' '{"domain":"google.com","createdAt":"2026-07-01T12:00:00Z","metadata":{}}' \
+  | valkey-cli --tls --cacert /etc/go-proxy/certs/valkey-ca.crt \
+      -h valkey-host -p 6379 -x SET session:session1234 EX 3600
+```
+
 ## Firewalld (optional)
 
 ```bash

@@ -49,12 +49,27 @@ Proxies are **read-only** for sessions. Create and revoke sessions directly in V
 ./benchmarks/seed-sessions.sh
 ```
 
-Or manually with `valkey-cli`:
+Or manually with `valkey-cli`. The shell removes `"` unless the JSON is quoted safely — use **single quotes around the whole JSON**, or pipe via `-x`:
 
 ```bash
+# Safe: single quotes around the JSON value
 valkey-cli SET 'session:session1234' \
   '{"domain":"google.com","createdAt":"2026-07-01T12:00:00Z","metadata":{}}' \
   EX 3600
+
+# Safest: pipe JSON on stdin (-x) — no shell quote issues
+printf '%s' '{"domain":"google.com","createdAt":"2026-07-01T12:00:00Z","metadata":{}}' \
+  | valkey-cli -x SET session:session1234 EX 3600
+
+# One session via helper script
+./benchmarks/seed-one.sh session1234 google.com config/go-proxy.json
+```
+
+**Avoid** passing bare JSON as separate shell words — this strips quotes and stores invalid data:
+
+```bash
+# Wrong — shell mangles the JSON
+valkey-cli SET session:session1234 {"domain":"google.com","createdAt":"2026-07-01T12:00:00Z","metadata":{}}
 ```
 
 Session values **must be valid JSON** with quoted keys. Common mistakes that cause `invalid character 'd' looking for beginning of object key string`:
