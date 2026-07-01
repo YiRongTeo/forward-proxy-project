@@ -4,14 +4,14 @@ const schemeInput = document.getElementById('proxyScheme');
 const statusEl = document.getElementById('status');
 
 function proxyEndpoint() {
-  const proxyHost = hostInput.value.trim() || 'localhost';
+  const proxyHost = hostInput.value.trim() || '127.0.0.1';
   const proxyPort = parseInt(portInput.value, 10) || 8080;
   const proxyScheme = schemeInput.value === 'https' ? 'https' : 'http';
   return { proxyHost, proxyPort, proxyScheme, url: `${proxyScheme}://${proxyHost}:${proxyPort}/` };
 }
 
 chrome.storage.local.get(
-  { proxyHost: 'localhost', proxyPort: 8080, proxyScheme: 'http' },
+  { proxyHost: '127.0.0.1', proxyPort: 8080, proxyScheme: 'http' },
   (cfg) => {
     hostInput.value = cfg.proxyHost;
     portInput.value = cfg.proxyPort;

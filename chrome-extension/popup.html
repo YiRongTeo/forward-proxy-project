@@ -31,8 +31,10 @@
       answers the proxy <strong>407</strong> with your session ID (same as
       <code>curl -U 'session1234:session'</code>). Open <strong>Options</strong>
       and set port <strong>8081</strong> for Go (8080 for Node). Reload the
-      extension after changes; check the service worker console for
-      <code>onAuthRequired</code> logs.
+      extension after changes. After browsing, the service worker console should
+      show <code>onAuthRequired</code> and <code>authSupplied</code>. If you
+      only see <code>refreshed</code>, check Control in the popup — it must be
+      <code>controlled_by_this_extension</code>.
     </div>
     <script src="rules.js"></script>
     <script src="popup.js"></script>
