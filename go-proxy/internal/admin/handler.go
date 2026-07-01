@@ -15,6 +15,14 @@ type Server struct {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodConnect {
+		proxyutil.WriteJSON(w, http.StatusMethodNotAllowed, map[string]interface{}{
+			"error":   "connect_to_proxy_port",
+			"message": "CONNECT belongs on the forward proxy port (8081), not the admin API port (9001)",
+		})
+		return
+	}
+
 	switch {
 	case r.Method == http.MethodGet && r.URL.Path == "/health":
 		if err := s.Store.Ping(context.Background()); err != nil {

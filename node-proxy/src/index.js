@@ -32,22 +32,8 @@ const proxyOptions = {
 
 const proxyHandler = createProxyHandler(proxyOptions);
 
-const proxyServer = createServer(tlsOptions, (req, res) => {
-  if (req.method === 'CONNECT') {
-    res.writeHead(405, { 'Content-Type': 'text/plain' });
-    res.end('CONNECT must use upgrade');
-    return;
-  }
-  proxyHandler(req, res);
-});
-
-proxyServer.on('clientError', (_err, socket) => {
-  if (!socket.destroyed) socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
-});
-
-proxyServer.on('connect', (req, clientSocket, head) => {
-  clientSocket.on('error', () => {});
-  const fakeRes = {
+function createConnectResponse(clientSocket) {
+  return {
     headersSent: false,
     writeHead(statusCode, statusMessage, headers) {
       this.headersSent = true;
@@ -76,8 +62,27 @@ proxyServer.on('connect', (req, clientSocket, head) => {
       if (!clientSocket.destroyed) clientSocket.end();
     },
   };
+}
 
-  handleConnect(req, fakeRes, clientSocket, head, proxyOptions);
+function onConnectRequest(req, clientSocket, head) {
+  clientSocket.on('error', () => {});
+  handleConnect(req, createConnectResponse(clientSocket), clientSocket, head, proxyOptions);
+}
+
+const proxyServer = createServer(tlsOptions, (req, res) => {
+  if (req.method === 'CONNECT') {
+    onConnectRequest(req, req.socket, Buffer.alloc(0));
+    return;
+  }
+  proxyHandler(req, res);
+});
+
+proxyServer.on('clientError', (_err, socket) => {
+  if (!socket.destroyed) socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
+});
+
+proxyServer.on('connect', (req, clientSocket, head) => {
+  onConnectRequest(req, clientSocket, head);
 });
 
 const adminServer = createAdminServer(sessionStore, tlsOptions);
