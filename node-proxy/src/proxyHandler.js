@@ -3,7 +3,7 @@
 const http = require('http');
 const net = require('net');
 const { URL } = require('url');
-const { hostAllowed } = require('./domainMatch');
+const { requestHostAllowed } = require('./domainMatch');
 const { getSessionId } = require('./sessionAuth');
 const { stripHopByHop, sendJson, sendProxyAuthRequired, sendConnectProxyAuthRequired, logEvent } = require('./util');
 
@@ -102,7 +102,7 @@ function handleConnect(req, res, socket, head, options) {
         return;
       }
 
-      if (!hostAllowed(host, auth.session.domain)) {
+      if (!requestHostAllowed(host, auth.session.domain, options.defaultAllowedDomains)) {
         sendJson(res, 403, {
           error: 'domain_not_allowed',
           sessionDomain: auth.session.domain,
@@ -201,7 +201,7 @@ function handleHttp(req, res, options) {
       }
 
       const requestedHost = targetUrl.hostname;
-      if (!hostAllowed(requestedHost, auth.session.domain)) {
+      if (!requestHostAllowed(requestedHost, auth.session.domain, options.defaultAllowedDomains)) {
         sendJson(res, 403, {
           error: 'domain_not_allowed',
           sessionDomain: auth.session.domain,

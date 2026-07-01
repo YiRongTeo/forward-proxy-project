@@ -26,15 +26,16 @@ type Valkey struct {
 }
 
 type File struct {
-	ValkeyURL         string          `json:"valkeyUrl"`
-	ValkeySentinel    *ValkeySentinel `json:"valkeySentinel"`
-	ProxyPort         int             `json:"proxyPort"`
-	AdminPort         int             `json:"adminPort"`
-	ProxyTimeoutMs    int             `json:"proxyTimeoutMs"`
-	AllowedClientIps  []string        `json:"allowedClientIps"`
-	TrustProxyHeaders bool            `json:"trustProxyHeaders"`
-	SessionHeader     string          `json:"sessionHeader"`
-	TLS               TLS             `json:"tls"`
+	ValkeyURL              string          `json:"valkeyUrl"`
+	ValkeySentinel         *ValkeySentinel `json:"valkeySentinel"`
+	ProxyPort              int             `json:"proxyPort"`
+	AdminPort              int             `json:"adminPort"`
+	ProxyTimeoutMs         int             `json:"proxyTimeoutMs"`
+	AllowedClientIps       []string        `json:"allowedClientIps"`
+	DefaultAllowedDomains  []string        `json:"defaultAllowedDomains"`
+	TrustProxyHeaders      bool            `json:"trustProxyHeaders"`
+	SessionHeader          string          `json:"sessionHeader"`
+	TLS                    TLS             `json:"tls"`
 }
 
 type Loaded struct {
@@ -55,8 +56,9 @@ func defaultFile() File {
 		ProxyPort:         8081,
 		AdminPort:         9001,
 		ProxyTimeoutMs:    30000,
-		AllowedClientIps:  []string{"127.0.0.1", "::1"},
-		TrustProxyHeaders: false,
+		AllowedClientIps:      []string{"127.0.0.1", "::1"},
+		DefaultAllowedDomains: []string{},
+		TrustProxyHeaders:     false,
 		SessionHeader:     "X-Session-ID",
 	}
 }
@@ -115,6 +117,9 @@ func Load(path string) (*Loaded, error) {
 	}
 	if len(cfg.AllowedClientIps) == 0 {
 		cfg.AllowedClientIps = defaultFile().AllowedClientIps
+	}
+	if cfg.DefaultAllowedDomains == nil {
+		cfg.DefaultAllowedDomains = defaultFile().DefaultAllowedDomains
 	}
 	if cfg.SessionHeader == "" {
 		cfg.SessionHeader = defaultFile().SessionHeader

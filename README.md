@@ -4,7 +4,7 @@ Dual HTTP forward proxy implementation (**Node.js** and **Go**) with Valkey-back
 
 ## Overview
 
-Each session ID maps to exactly one allowed domain in Valkey. Example: `session1234` → `google.com` allows `google.com` and subdomains, but blocks `facebook.com`.
+Each session ID maps to exactly one allowed domain in Valkey. Example: `session1234` → `google.com` allows `google.com` and subdomains, but blocks `facebook.com`. Domains listed in `defaultAllowedDomains` in the config file are also permitted for any valid session (same suffix matching rules).
 
 Every proxied request is gated by:
 
@@ -107,12 +107,16 @@ curl -x http://127.0.0.1:8080 \
 
 ## Domain Matching Rules
 
-| Requested host | Session domain | Result |
-|----------------|----------------|--------|
-| `google.com` | `google.com` | Allow |
-| `www.google.com` | `google.com` | Allow |
-| `facebook.com` | `google.com` | Deny |
-| `notgoogle.com` | `google.com` | Deny |
+A request is allowed when the host matches the session's Valkey domain **or** any entry in `defaultAllowedDomains` from the config file. Subdomains match (suffix-safe).
+
+| Requested host | Session domain | `defaultAllowedDomains` | Result |
+|----------------|----------------|-------------------------|--------|
+| `google.com` | `google.com` | `[]` | Allow |
+| `www.google.com` | `google.com` | `[]` | Allow |
+| `facebook.com` | `google.com` | `[]` | Deny |
+| `example.com` | `google.com` | `["example.com"]` | Allow |
+| `api.example.com` | `google.com` | `["example.com"]` | Allow |
+| `notgoogle.com` | `google.com` | `[]` | Deny |
 
 Matching is suffix-safe: host must equal the domain or end with `.` + domain.
 
@@ -159,12 +163,17 @@ Docker Compose mounts each file to `/config/config.json` inside the container.
   "allowedClientIps": ["127.0.0.1", "::1", "172.16.0.0/12"],
   "trustProxyHeaders": false,
   "sessionHeader": "X-Session-ID",
+  "defaultAllowedDomains": ["example.com", "localhost"],
   "tls": {
     "certFile": "/certs/tls.crt",
     "keyFile": "/certs/tls.key"
   }
 }
 ```
+
+| Field | Description |
+|-------|-------------|
+| `defaultAllowedDomains` | Optional list of domains allowed for every valid session (in addition to the session's Valkey domain). Uses the same suffix matching rules. Default: `[]`. |
 
 **Local run:**
 

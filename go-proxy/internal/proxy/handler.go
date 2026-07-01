@@ -17,11 +17,12 @@ import (
 )
 
 type Config struct {
-	Allowlist           *allowlist.Allowlist
-	TrustProxyHeaders   bool
-	SessionStore        *session.Store
-	SessionHeader       string
-	Timeout             time.Duration
+	Allowlist             *allowlist.Allowlist
+	TrustProxyHeaders     bool
+	SessionStore          *session.Store
+	SessionHeader         string
+	DefaultAllowedDomains []string
+	Timeout               time.Duration
 }
 
 type authResult struct {
@@ -103,7 +104,7 @@ func (c *Config) HandleConnect(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if !domain.HostAllowed(host, auth.session.Domain) {
+	if !domain.RequestHostAllowed(host, auth.session.Domain, c.DefaultAllowedDomains) {
 		proxyutil.WriteJSON(w, http.StatusForbidden, map[string]interface{}{"error": "domain_not_allowed", "sessionDomain": auth.session.Domain, "requestedHost": host, "sessionId": auth.sessionID})
 		proxyutil.LogEvent(map[string]interface{}{"clientIp": r.RemoteAddr, "sessionId": auth.sessionID, "sessionDomain": auth.session.Domain, "requestedHost": host, "allowed": false, "method": "CONNECT", "latencyMs": time.Since(start).Milliseconds(), "error": "domain_not_allowed"})
 		return
@@ -171,7 +172,7 @@ func (c *Config) HandleHTTP(w http.ResponseWriter, r *http.Request) {
 		proxyutil.LogEvent(map[string]interface{}{"clientIp": r.RemoteAddr, "sessionId": auth.sessionID, "allowed": false, "method": r.Method, "latencyMs": time.Since(start).Milliseconds(), "error": auth.errorCode})
 		return
 	}
-	if !domain.HostAllowed(requestedHost, auth.session.Domain) {
+	if !domain.RequestHostAllowed(requestedHost, auth.session.Domain, c.DefaultAllowedDomains) {
 		proxyutil.WriteJSON(w, http.StatusForbidden, map[string]interface{}{"error": "domain_not_allowed", "sessionDomain": auth.session.Domain, "requestedHost": requestedHost, "sessionId": auth.sessionID})
 		proxyutil.LogEvent(map[string]interface{}{"clientIp": r.RemoteAddr, "sessionId": auth.sessionID, "sessionDomain": auth.session.Domain, "requestedHost": requestedHost, "allowed": false, "method": r.Method, "latencyMs": time.Since(start).Milliseconds(), "error": "domain_not_allowed"})
 		return

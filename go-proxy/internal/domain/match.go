@@ -26,3 +26,15 @@ func HostAllowed(requestedHost, sessionDomain string) bool {
 	}
 	return host == domain || strings.HasSuffix(host, "."+domain)
 }
+
+func RequestHostAllowed(requestedHost, sessionDomain string, defaultAllowedDomains []string) bool {
+	if HostAllowed(requestedHost, sessionDomain) {
+		return true
+	}
+	for _, allowed := range defaultAllowedDomains {
+		if HostAllowed(requestedHost, allowed) {
+			return true
+		}
+	}
+	return false
+}
