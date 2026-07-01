@@ -179,6 +179,14 @@ Docker Compose mounts each file to `/config/config.json` inside the container.
 
 ```bash
 node node-proxy/src/index.js --config config/node-proxy.json
+
+cd go-proxy && make build
+./bin/go-proxy -config ../config/go-proxy.json
+```
+
+Or without Make for Go:
+
+```bash
 go run ./go-proxy/cmd/proxy -config config/go-proxy.json
 ```
 
@@ -260,6 +268,7 @@ Compare Node (`8080`) vs Go (`8081`) using RPS, p99 latency, and 403 rates on de
 ├── chrome-extension/     # Chrome MV3 extension
 ├── node-proxy/           # Node.js forward proxy
 ├── go-proxy/             # Go forward proxy
+│   └── deploy/           # RHEL systemd unit + install notes
 └── benchmarks/           # Load test scripts
 ```
 

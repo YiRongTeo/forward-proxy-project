@@ -10,28 +10,35 @@ Run the Go forward proxy as a systemd service on RHEL 8/9 (or compatible distros
 
 ## 1. Build the binary
 
-On a build machine with Go installed:
+From the `go-proxy` directory:
 
 ```bash
 cd go-proxy
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o go-proxy ./cmd/proxy
+make build
 ```
+
+For cross-compiling on a non-Linux build host:
+
+```bash
+make build-linux
+```
+
+The binary is written to `bin/go-proxy` (the path used by `make install` and the systemd unit).
 
 ## 2. Install files
 
 ```bash
-sudo useradd --system --home-dir /var/lib/go-proxy --shell /sbin/nologin go-proxy
-
-sudo install -m 0755 go-proxy /usr/local/bin/go-proxy
-sudo install -d -m 0750 -o go-proxy -g go-proxy /etc/go-proxy
-sudo install -d -m 0750 -o go-proxy -g go-proxy /etc/go-proxy/certs
-sudo install -d -m 0750 -o go-proxy -g go-proxy /var/log/go-proxy
-
-sudo install -m 0640 -o root -g go-proxy deploy/config.json.example /etc/go-proxy/config.json
-sudo install -m 0640 deploy/go-proxy.env.example /etc/go-proxy/go-proxy.env
-sudo install -m 0644 deploy/go-proxy.service /etc/systemd/system/go-proxy.service
-sudo install -m 0644 deploy/README.md /usr/share/doc/go-proxy/README.md
+cd go-proxy
+sudo make install
 ```
+
+Or step by step:
+
+```bash
+sudo make install-user install-bin install-config install-service
+```
+
+`make install-bin` copies `bin/go-proxy` to `/usr/local/bin/go-proxy` (the path referenced by the systemd unit).
 
 Edit `/etc/go-proxy/config.json` for your environment (`valkeyUrl`, `allowedClientIps`, ports, TLS paths).
 
@@ -92,7 +99,9 @@ Port `8081` is the forward proxy; port `9001` is the read-only admin API.
 ## Upgrade
 
 ```bash
+cd go-proxy
+make build
 sudo systemctl stop go-proxy
-sudo install -m 0755 go-proxy /usr/local/bin/go-proxy
+sudo make install-bin
 sudo systemctl start go-proxy
 ```
