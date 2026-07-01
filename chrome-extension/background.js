@@ -108,6 +108,8 @@ function tunnelFailureHint(summary) {
   }
   return '407 seen but credentials not supplied — reload extension and save session';
 }
+
+function proxyAuthCredentials(sessionId) {
   return {
     authCredentials: {
       username: sessionId,
