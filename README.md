@@ -64,7 +64,7 @@ The proxy admin API only supports **read** operations: `GET /health` and `GET /s
 1. Open `chrome://extensions`
 2. Enable **Developer mode**
 3. **Load unpacked** → select [`chrome-extension/`](chrome-extension/)
-4. Open extension **Options** → set scheme (`http` or `https`), host `localhost`, port `8080` (Node) or `8081` (Go)
+4. Open extension **Options** → set scheme (`http` or `https`), host `localhost`, port `8080` (Node) or `8081` (Go). The scheme must match the proxy listener: if `tls.certFile` / `tls.keyFile` are set and readable, use **https**; otherwise use **http**. A mismatch causes `ERR_TUNNEL_CONNECTION_FAILED`.
 5. Open extension **Popup** → enter session ID `session1234` → Save
 6. Browse to `https://google.com` (allowed) or `https://facebook.com` (blocked with 403)
 

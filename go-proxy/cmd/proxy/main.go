@@ -70,10 +70,10 @@ func main() {
 	adminPort := strconv.Itoa(cfg.AdminPort)
 
 	proxyServer := &http.Server{
-		Addr:         "0.0.0.0:" + proxyPort,
-		Handler:      proxyCfg,
-		ReadTimeout:  60 * time.Second,
-		WriteTimeout: 60 * time.Second,
+		Addr:              "0.0.0.0:" + proxyPort,
+		Handler:           proxyCfg,
+		ReadHeaderTimeout: 60 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	adminServer := &http.Server{

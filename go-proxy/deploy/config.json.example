@@ -21,7 +21,7 @@
   "sessionHeader": "X-Session-ID",
   "defaultAllowedDomains": [],
   "tls": {
-    "certFile": "/etc/go-proxy/certs/tls.crt",
-    "keyFile": "/etc/go-proxy/certs/tls.key"
+    "certFile": "",
+    "keyFile": ""
   }
 }

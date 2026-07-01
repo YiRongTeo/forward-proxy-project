@@ -42,7 +42,9 @@ sudo make install-user install-bin install-config install-service
 
 Edit `/etc/go-proxy/config.json` for your environment (`valkeyUrl`, `valkeyTls`, `allowedClientIps`, ports).
 
-**Proxy listener TLS** (`tls.certFile` / `tls.keyFile`): place files in `/etc/go-proxy/certs/` and ensure the `go-proxy` user can read them:
+**Proxy listener TLS** (`tls.certFile` / `tls.keyFile`): optional HTTPS for the forward proxy itself. If these files are missing or empty, the proxy listens on plain HTTP. When enabled, set the Chrome extension proxy scheme to **https** (not http) or Chrome will show `ERR_TUNNEL_CONNECTION_FAILED`.
+
+Place files in `/etc/go-proxy/certs/` and ensure the `go-proxy` user can read them:
 
 ```bash
 sudo chown root:go-proxy /etc/go-proxy/certs/tls.crt /etc/go-proxy/certs/tls.key
@@ -97,6 +99,13 @@ sudo firewall-cmd --reload
 ```
 
 Port `8081` is the forward proxy; port `9001` is the read-only admin API.
+
+## Troubleshooting `ERR_TUNNEL_CONNECTION_FAILED`
+
+1. **Proxy scheme mismatch** — if `/etc/go-proxy/config.json` has non-empty `tls.certFile` / `tls.keyFile` and the files exist, the proxy listens on HTTPS. Set the Chrome extension proxy scheme to `https`, not `http`.
+2. **Missing session** — check `journalctl -u go-proxy` for `missing_session_id` on CONNECT. Reload the extension and save your session ID again.
+3. **Domain blocked** — logs show `domain_not_allowed` when the site is outside the session domain and `defaultAllowedDomains`.
+4. **Upgrade** — rebuild and reinstall after CONNECT handler fixes: `make build && sudo make install-bin && sudo systemctl restart go-proxy`.
 
 ## Upgrade
 

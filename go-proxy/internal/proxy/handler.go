@@ -74,47 +74,50 @@ func parseConnectTarget(target string) (host string, port string) {
 	return host, port
 }
 
+func connectTarget(r *http.Request) (host string, port string) {
+	if r.Method == http.MethodConnect && r.RequestURI != "" {
+		return parseConnectTarget(r.RequestURI)
+	}
+	if r.URL.Host != "" {
+		return parseConnectTarget(r.URL.Host)
+	}
+	return parseConnectTarget(r.Host)
+}
+
+func (c *Config) logConnectEvent(start time.Time, clientIP string, auth authResult, host string, allowed bool, errCode string, extra map[string]interface{}) {
+	fields := map[string]interface{}{
+		"clientIp":      clientIP,
+		"sessionId":     auth.sessionID,
+		"requestedHost": host,
+		"allowed":       allowed,
+		"method":        "CONNECT",
+		"latencyMs":     time.Since(start).Milliseconds(),
+	}
+	if errCode != "" {
+		fields["error"] = errCode
+	}
+	if auth.session != nil {
+		fields["sessionDomain"] = auth.session.Domain
+	}
+	for key, value := range extra {
+		fields[key] = value
+	}
+	proxyutil.LogEvent(fields)
+}
+
 func (c *Config) HandleConnect(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	host, port := parseConnectTarget(r.Host)
-	if r.URL.Host != "" {
-		host, port = parseConnectTarget(r.URL.Host)
-	}
-	if r.Method == http.MethodConnect {
-		host, port = parseConnectTarget(r.RequestURI)
-	}
+	host, port := connectTarget(r)
+	clientIP := c.Allowlist.ClientIP(r, r.RemoteAddr, c.TrustProxyHeaders).String()
 
 	auth := c.authorize(r, r.RemoteAddr, host)
-	if !auth.ok {
-		if auth.authRequired {
-			proxyutil.WriteConnectProxyAuthRequired(w)
-		} else {
-			proxyutil.WriteJSON(w, auth.status, map[string]interface{}{"error": auth.errorCode, "requestedHost": host, "sessionId": auth.sessionID})
-		}
-		proxyutil.LogEvent(map[string]interface{}{
-			"clientIp": r.RemoteAddr,
-			"sessionId": auth.sessionID,
-			"requestedHost": host,
-			"allowed": false,
-			"method": "CONNECT",
-			"latencyMs": time.Since(start).Milliseconds(),
-			"error": auth.errorCode,
-			"hasSessionHeader": r.Header.Get("X-Session-ID") != "" || r.Header.Get("x-session-id") != "",
-			"hasProxyAuth": r.Header.Get("Proxy-Authorization") != "",
-		})
-		return
-	}
-	if !domain.RequestHostAllowed(host, auth.session.Domain, c.DefaultAllowedDomains) {
-		proxyutil.WriteJSON(w, http.StatusForbidden, map[string]interface{}{"error": "domain_not_allowed", "sessionDomain": auth.session.Domain, "requestedHost": host, "sessionId": auth.sessionID})
-		proxyutil.LogEvent(map[string]interface{}{"clientIp": r.RemoteAddr, "sessionId": auth.sessionID, "sessionDomain": auth.session.Domain, "requestedHost": host, "allowed": false, "method": "CONNECT", "latencyMs": time.Since(start).Milliseconds(), "error": "domain_not_allowed"})
-		return
-	}
 
 	hijacker, ok := w.(http.Hijacker)
 	if !ok {
 		proxyutil.WriteJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "hijack_not_supported"})
 		return
 	}
+
 	clientConn, bufrw, err := hijacker.Hijack()
 	if err != nil {
 		proxyutil.WriteJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "hijack_failed"})
@@ -122,22 +125,62 @@ func (c *Config) HandleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 	defer clientConn.Close()
 
+	if !auth.ok {
+		if auth.authRequired {
+			_ = proxyutil.WriteConnectProxyAuthRequiredRaw(clientConn)
+		} else {
+			body := map[string]interface{}{
+				"error":         auth.errorCode,
+				"requestedHost": host,
+			}
+			if auth.sessionID != "" {
+				body["sessionId"] = auth.sessionID
+			}
+			_ = proxyutil.WriteConnectJSON(clientConn, auth.status, http.StatusText(auth.status), body)
+		}
+		c.logConnectEvent(start, clientIP, auth, host, false, auth.errorCode, map[string]interface{}{
+			"hasSessionHeader": r.Header.Get("X-Session-ID") != "" || r.Header.Get("x-session-id") != "",
+			"hasProxyAuth":     r.Header.Get("Proxy-Authorization") != "",
+		})
+		return
+	}
+
+	if !domain.RequestHostAllowed(host, auth.session.Domain, c.DefaultAllowedDomains) {
+		_ = proxyutil.WriteConnectJSON(clientConn, http.StatusForbidden, http.StatusText(http.StatusForbidden), map[string]interface{}{
+			"error":         "domain_not_allowed",
+			"sessionDomain": auth.session.Domain,
+			"requestedHost": host,
+			"sessionId":     auth.sessionID,
+		})
+		c.logConnectEvent(start, clientIP, auth, host, false, "domain_not_allowed", nil)
+		return
+	}
+
 	upstreamAddr := net.JoinHostPort(host, port)
 	upstreamConn, err := net.DialTimeout("tcp", upstreamAddr, c.Timeout)
 	if err != nil {
-		_, _ = bufrw.WriteString("HTTP/1.1 502 Bad Gateway\r\nContent-Type: application/json\r\n\r\n" + `{"error":"upstream_unreachable"}`)
-		_ = bufrw.Flush()
-		proxyutil.LogEvent(map[string]interface{}{"clientIp": r.RemoteAddr, "sessionId": auth.sessionID, "requestedHost": host, "allowed": true, "method": "CONNECT", "latencyMs": time.Since(start).Milliseconds(), "error": "upstream_unreachable"})
+		_ = proxyutil.WriteConnectJSON(clientConn, http.StatusBadGateway, http.StatusText(http.StatusBadGateway), map[string]interface{}{
+			"error":         "upstream_unreachable",
+			"requestedHost": host,
+		})
+		c.logConnectEvent(start, clientIP, auth, host, true, "upstream_unreachable", nil)
 		return
 	}
 	defer upstreamConn.Close()
 
-	_, _ = bufrw.WriteString("HTTP/1.1 200 Connection Established\r\n\r\n")
-	_ = bufrw.Flush()
+	if err := proxyutil.WriteConnectEstablished(clientConn); err != nil {
+		c.logConnectEvent(start, clientIP, auth, host, true, "connect_response_failed", nil)
+		return
+	}
+
+	if err := proxyutil.ForwardBuffered(bufrw.Reader, upstreamConn); err != nil {
+		c.logConnectEvent(start, clientIP, auth, host, true, "buffer_forward_failed", nil)
+		return
+	}
 
 	go pipe(upstreamConn, clientConn)
 	pipe(clientConn, upstreamConn)
-	proxyutil.LogEvent(map[string]interface{}{"clientIp": r.RemoteAddr, "sessionId": auth.sessionID, "sessionDomain": auth.session.Domain, "requestedHost": host, "allowed": true, "method": "CONNECT", "latencyMs": time.Since(start).Milliseconds()})
+	c.logConnectEvent(start, clientIP, auth, host, true, "", nil)
 }
 
 func pipe(dst net.Conn, src net.Conn) {
