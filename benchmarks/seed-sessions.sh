@@ -1,25 +1,31 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-NODE_ADMIN="${NODE_ADMIN:-http://localhost:3001}"
-GO_ADMIN="${GO_ADMIN:-http://localhost:9001}"
+VALKEY_HOST="${VALKEY_HOST:-localhost}"
+VALKEY_PORT="${VALKEY_PORT:-6379}"
+TTL="${SESSION_TTL_SECONDS:-3600}"
 
-create_session() {
-  local admin_url="$1"
-  local id="$2"
-  local domain="$3"
-  curl -sf -X POST "${admin_url}/sessions" \
-    -H 'Content-Type: application/json' \
-    -d "{\"id\":\"${id}\",\"domain\":\"${domain}\"}" | tee /dev/stderr
-  echo
+seed_session() {
+  local id="$1"
+  local domain="$2"
+  local created_at
+  created_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  local payload
+  payload=$(printf '{"domain":"%s","createdAt":"%s","metadata":{}}' "$domain" "$created_at")
+
+  if command -v valkey-cli >/dev/null 2>&1; then
+    valkey-cli -h "$VALKEY_HOST" -p "$VALKEY_PORT" SET "session:${id}" "$payload" EX "$TTL"
+  elif command -v redis-cli >/dev/null 2>&1; then
+    redis-cli -h "$VALKEY_HOST" -p "$VALKEY_PORT" SET "session:${id}" "$payload" EX "$TTL"
+  else
+    echo "valkey-cli or redis-cli is required to seed sessions" >&2
+    exit 1
+  fi
+
+  echo "Seeded session:${id} -> ${domain} (TTL ${TTL}s)"
 }
 
-echo "Seeding Node proxy sessions..."
-create_session "$NODE_ADMIN" "session1234" "google.com"
-create_session "$NODE_ADMIN" "session5678" "example.com"
-
-echo "Seeding Go proxy sessions..."
-create_session "$GO_ADMIN" "session1234" "google.com"
-create_session "$GO_ADMIN" "session5678" "example.com"
-
+echo "Seeding sessions directly in Valkey (proxies are read-only)..."
+seed_session "session1234" "google.com"
+seed_session "session5678" "example.com"
 echo "Done."

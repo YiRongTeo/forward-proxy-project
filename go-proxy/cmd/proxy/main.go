@@ -12,6 +12,7 @@ import (
 	"go-proxy/internal/allowlist"
 	"go-proxy/internal/proxy"
 	"go-proxy/internal/session"
+	"go-proxy/internal/tlsconfig"
 )
 
 func env(key, fallback string) string {
@@ -21,17 +22,32 @@ func env(key, fallback string) string {
 	return fallback
 }
 
+func startServer(server *http.Server, label, port string, tls tlsconfig.Config) {
+	go func() {
+		log.Printf(`{"msg":%q,"port":%q,"tls":%t}`, label, port, tls.Enabled)
+		var err error
+		if tls.Enabled {
+			err = server.ListenAndServeTLS(tls.CertFile, tls.KeyFile)
+		} else {
+			err = server.ListenAndServe()
+		}
+		if err != nil && err != http.ErrServerClosed {
+			log.Fatal(err)
+		}
+	}()
+}
+
 func main() {
 	valkeyURL := env("VALKEY_URL", "redis://127.0.0.1:6379")
-	sessionTTL, _ := strconv.Atoi(env("SESSION_TTL_SECONDS", "3600"))
 	timeoutMs, _ := strconv.Atoi(env("PROXY_TIMEOUT_MS", "30000"))
 	allowedIPs := strings.Split(env("ALLOWED_CLIENT_IPS", "127.0.0.1,::1"), ",")
 	trustProxy := env("TRUST_PROXY_HEADERS", "false") == "true"
 	sessionHeader := env("SESSION_HEADER", "X-Session-ID")
 	proxyPort := env("PROXY_PORT", "8081")
 	adminPort := env("ADMIN_PORT", "9001")
+	tls := tlsconfig.LoadFromEnv()
 
-	store, err := session.NewStore(valkeyURL, sessionTTL)
+	store, err := session.NewStore(valkeyURL)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -57,19 +73,21 @@ func main() {
 	}
 
 	adminServer := &http.Server{
-		Addr:    "0.0.0.0:" + adminPort,
-		Handler: &admin.Server{Store: store},
+		Addr: "0.0.0.0:" + adminPort,
+		Handler: &admin.Server{
+			Store: store,
+			TLS:   tls.Enabled,
+		},
 	}
 
-	go func() {
-		log.Printf(`{"msg":"go forward proxy listening","port":"%s"}`, proxyPort)
-		if err := proxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	startServer(proxyServer, "go forward proxy listening", proxyPort, tls)
+
+	log.Printf(`{"msg":"go admin API listening","port":%q,"tls":%t}`, adminPort, tls.Enabled)
+	if tls.Enabled {
+		if err := adminServer.ListenAndServeTLS(tls.CertFile, tls.KeyFile); err != nil && err != http.ErrServerClosed {
 			log.Fatal(err)
 		}
-	}()
-
-	log.Printf(`{"msg":"go admin API listening","port":"%s"}`, adminPort)
-	if err := adminServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	} else if err := adminServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
 }

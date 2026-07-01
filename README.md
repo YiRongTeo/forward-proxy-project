@@ -43,32 +43,28 @@ cp .env.example .env
 
 ## Create a Session
 
+Proxies are **read-only** for sessions. Create and revoke sessions directly in Valkey (not via the proxy admin API):
+
 ```bash
-curl -X POST http://localhost:3001/sessions \
-  -H 'Content-Type: application/json' \
-  -d '{"id":"session1234","domain":"google.com"}'
+./benchmarks/seed-sessions.sh
 ```
 
-Response:
+Or manually with `valkey-cli`:
 
-```json
-{
-  "id": "session1234",
-  "domain": "google.com",
-  "createdAt": "2026-07-01T12:00:00Z",
-  "metadata": {},
-  "expiresIn": 3600
-}
+```bash
+valkey-cli SET 'session:session1234' \
+  '{"domain":"google.com","createdAt":"2026-07-01T12:00:00Z","metadata":{}}' \
+  EX 3600
 ```
 
-Go admin API is identical on port **9001**.
+The proxy admin API only supports **read** operations: `GET /health` and `GET /sessions/:id`. `POST`/`DELETE` return `405`.
 
 ## Chrome Extension Setup
 
 1. Open `chrome://extensions`
 2. Enable **Developer mode**
 3. **Load unpacked** → select [`chrome-extension/`](chrome-extension/)
-4. Open extension **Options** → set proxy host `localhost`, port `8080` (Node) or `8081` (Go)
+4. Open extension **Options** → set scheme (`http` or `https`), host `localhost`, port `8080` (Node) or `8081` (Go)
 5. Open extension **Popup** → enter session ID `session1234` → Save
 6. Browse to `https://google.com` (allowed) or `https://facebook.com` (blocked with 403)
 
@@ -116,14 +112,26 @@ curl -x http://127.0.0.1:8080 \
 
 Matching is suffix-safe: host must equal the domain or end with `.` + domain.
 
-## Admin API
+## TLS (when available)
+
+Both proxies listen with **HTTPS** when `TLS_CERT_FILE` and `TLS_KEY_FILE` point to readable certificate and key files. Otherwise they fall back to plain HTTP.
+
+```bash
+# Place certs in ./certs/ (see .env.example)
+export TLS_CERT_FILE=/certs/tls.crt
+export TLS_KEY_FILE=/certs/tls.key
+docker compose up --build
+```
+
+Use `https` proxy scheme in the Chrome extension when TLS is enabled. Upstream HTTPS continues to use CONNECT tunneling.
+
+## Admin API (read-only)
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/sessions` | Create session |
-| `GET` | `/sessions/:id` | Get session |
-| `DELETE` | `/sessions/:id` | Revoke session |
-| `GET` | `/health` | Health check |
+| `GET` | `/health` | Health check (includes `tls: true/false`) |
+| `GET` | `/sessions/:id` | Read session from Valkey |
+| `POST`/`DELETE`/etc. | `/sessions` | **405** — sessions cannot be modified via proxy |
 
 ## Configuration
 
@@ -135,6 +143,8 @@ Matching is suffix-safe: host must equal the domain or end with `.` + domain.
 | `ALLOWED_CLIENT_IPS` | `127.0.0.1,::1,...` | Client IP allowlist (CIDR supported) |
 | `TRUST_PROXY_HEADERS` | `false` | Use `X-Forwarded-For` when behind LB |
 | `SESSION_HEADER` | `X-Session-ID` | Session header name |
+| `TLS_CERT_FILE` | _(empty)_ | Path to TLS certificate; enables HTTPS when set with key |
+| `TLS_KEY_FILE` | _(empty)_ | Path to TLS private key |
 | `PROXY_PORT` | `8080` / `8081` | Forward proxy port |
 | `ADMIN_PORT` | `3001` / `9001` | Admin API port |
 

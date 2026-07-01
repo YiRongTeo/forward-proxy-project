@@ -6,7 +6,7 @@
     <style>
       body { font-family: system-ui, sans-serif; max-width: 480px; padding: 16px; }
       label { display: block; margin-top: 12px; }
-      input { width: 100%; box-sizing: border-box; padding: 6px; }
+      input, select { width: 100%; box-sizing: border-box; padding: 6px; }
       button { margin-top: 16px; padding: 8px 16px; }
       .status { margin-top: 12px; color: #0a0; }
     </style>
@@ -14,6 +14,11 @@
   <body>
     <h1>Forward Proxy Settings</h1>
     <p>Configure which proxy server the extension routes Chrome through.</p>
+    <label for="proxyScheme">Proxy scheme</label>
+    <select id="proxyScheme">
+      <option value="http">http</option>
+      <option value="https">https (when proxy TLS is enabled)</option>
+    </select>
     <label for="proxyHost">Proxy host</label>
     <input id="proxyHost" type="text" />
     <label for="proxyPort">Proxy port</label>

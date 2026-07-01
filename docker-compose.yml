@@ -24,6 +24,10 @@ services:
       SESSION_HEADER: "X-Session-ID"
       PROXY_PORT: "8080"
       ADMIN_PORT: "3001"
+      TLS_CERT_FILE: ${TLS_CERT_FILE:-}
+      TLS_KEY_FILE: ${TLS_KEY_FILE:-}
+    volumes:
+      - ${TLS_CERT_DIR:-./certs}:/certs:ro
     depends_on:
       valkey:
         condition: service_healthy
@@ -43,6 +47,10 @@ services:
       SESSION_HEADER: "X-Session-ID"
       PROXY_PORT: "8081"
       ADMIN_PORT: "9001"
+      TLS_CERT_FILE: ${TLS_CERT_FILE:-}
+      TLS_KEY_FILE: ${TLS_KEY_FILE:-}
+    volumes:
+      - ${TLS_CERT_DIR:-./certs}:/certs:ro
     depends_on:
       valkey:
         condition: service_healthy

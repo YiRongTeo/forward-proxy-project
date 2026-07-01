@@ -93,7 +93,6 @@ func (c *Config) HandleConnect(w http.ResponseWriter, r *http.Request) {
 		proxyutil.LogEvent(map[string]interface{}{"clientIp": r.RemoteAddr, "sessionId": auth.sessionID, "sessionDomain": auth.session.Domain, "requestedHost": host, "allowed": false, "method": "CONNECT", "latencyMs": time.Since(start).Milliseconds(), "error": "domain_not_allowed"})
 		return
 	}
-	_ = c.SessionStore.RefreshSession(context.Background(), auth.sessionID)
 
 	hijacker, ok := w.(http.Hijacker)
 	if !ok {
@@ -158,7 +157,6 @@ func (c *Config) HandleHTTP(w http.ResponseWriter, r *http.Request) {
 		proxyutil.LogEvent(map[string]interface{}{"clientIp": r.RemoteAddr, "sessionId": auth.sessionID, "sessionDomain": auth.session.Domain, "requestedHost": requestedHost, "allowed": false, "method": r.Method, "latencyMs": time.Since(start).Milliseconds(), "error": "domain_not_allowed"})
 		return
 	}
-	_ = c.SessionStore.RefreshSession(context.Background(), auth.sessionID)
 
 	req.Header = proxyutil.StripHopByHop(req.Header, c.SessionHeader)
 	req.Header.Set("Host", req.URL.Host)

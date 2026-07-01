@@ -117,8 +117,6 @@ function handleConnect(req, res, socket, head, options) {
         return;
       }
 
-      options.sessionStore.refreshSession(auth.sessionId).catch(() => {});
-
       const upstream = net.connect({ host, port }, () => {
         if (typeof res.writeRaw === 'function') {
           res.writeRaw('HTTP/1.1 200 Connection Established\r\n\r\n');
@@ -213,8 +211,6 @@ function handleHttp(req, res, options) {
         });
         return;
       }
-
-      await options.sessionStore.refreshSession(auth.sessionId);
 
       const headers = stripHopByHop(req.headers, options.sessionHeader);
       headers.host = targetUrl.host;

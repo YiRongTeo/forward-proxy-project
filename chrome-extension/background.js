@@ -1,23 +1,28 @@
 const SESSION_HEADER = 'X-Session-ID';
 const RULE_ID = 1;
-const DEFAULT_PROXY = { host: 'localhost', port: 8080 };
+const DEFAULT_PROXY = { host: 'localhost', port: 8080, scheme: 'http' };
 
 async function getConfig() {
   return new Promise((resolve) => {
     chrome.storage.sync.get(
-      { sessionId: '', proxyHost: DEFAULT_PROXY.host, proxyPort: DEFAULT_PROXY.port },
+      {
+        sessionId: '',
+        proxyHost: DEFAULT_PROXY.host,
+        proxyPort: DEFAULT_PROXY.port,
+        proxyScheme: DEFAULT_PROXY.scheme,
+      },
       resolve
     );
   });
 }
 
 async function applyProxySettings() {
-  const { proxyHost, proxyPort } = await getConfig();
+  const { proxyHost, proxyPort, proxyScheme } = await getConfig();
   const config = {
     mode: 'fixed_servers',
     rules: {
       singleProxy: {
-        scheme: 'http',
+        scheme: proxyScheme === 'https' ? 'https' : 'http',
         host: proxyHost,
         port: parseInt(proxyPort, 10) || 8080,
       },
@@ -86,7 +91,7 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'sync') return;
-  if (changes.proxyHost || changes.proxyPort || changes.sessionId) {
+  if (changes.proxyHost || changes.proxyPort || changes.proxyScheme || changes.sessionId) {
     refresh().catch(console.error);
   }
 });
