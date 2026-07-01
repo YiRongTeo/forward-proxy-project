@@ -88,7 +88,26 @@ function isOurProxyChallenge(details) {
   return normalizeHost(challenger.host) === normalizeHost(cachedConfig.proxyHost);
 }
 
-function proxyAuthCredentials(sessionId) {
+function recentAuthSummary() {
+  const hadAuthSupplied = recentEvents.some((entry) => entry.type === 'authSupplied');
+  const hadOnAuth = recentEvents.some((entry) => entry.type === 'onAuthRequired');
+  const hadAuthSkipped = recentEvents.some((entry) => entry.type === 'authSkipped');
+  const recentTypes = recentEvents.slice(0, 6).map((entry) => entry.type).join('>');
+  return { hadAuthSupplied, hadOnAuth, hadAuthSkipped, recentTypes };
+}
+
+function tunnelFailureHint(summary) {
+  if (!summary.hadOnAuth) {
+    return 'no onAuthRequired — check proxy host/port/scheme or TCP reachability';
+  }
+  if (summary.hadAuthSkipped) {
+    return 'session empty — save session ID in popup';
+  }
+  if (summary.hadAuthSupplied) {
+    return 'auth sent but CONNECT rejected — run journalctl -u go-proxy and check error field';
+  }
+  return '407 seen but credentials not supplied — reload extension and save session';
+}
   return {
     authCredentials: {
       username: sessionId,
@@ -184,10 +203,15 @@ function registerDiagnosticListeners() {
     (details) => {
       if (!details.error) return;
       if (!/PROXY|TUNNEL|407|AUTH|CONNECTION_FAILED/i.test(details.error)) return;
+      const auth = recentAuthSummary();
       pushEvent('networkError', {
         url: details.url,
         method: details.method,
         error: details.error,
+        session: cachedConfig.sessionId ? 'set' : 'empty',
+        authSupplied: auth.hadAuthSupplied,
+        onAuthRequired: auth.hadOnAuth,
+        hint: tunnelFailureHint(auth),
       });
     },
     { urls: ['<all_urls>'] }

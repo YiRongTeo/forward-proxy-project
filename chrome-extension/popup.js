@@ -1,10 +1,23 @@
 const sessionInput = document.getElementById('sessionId');
 const statusEl = document.getElementById('status');
 const metaEl = document.getElementById('meta');
+const eventsEl = document.getElementById('events');
+
+function formatEvent(entry) {
+  if (!entry) return '';
+  const detail =
+    typeof entry.detail === 'string'
+      ? entry.detail
+      : Object.entries(entry.detail || {})
+          .map(([key, value]) => `${key}=${value}`)
+          .join(' ');
+  return `${entry.type}${detail ? ': ' + detail : ''}`;
+}
 
 function renderStatus(response) {
   if (!response?.ok) {
     metaEl.textContent = response?.error || 'Unable to read extension status.';
+    eventsEl.textContent = '';
     return;
   }
 
@@ -29,6 +42,10 @@ function renderStatus(response) {
   ]
     .filter(Boolean)
     .join(' | ');
+
+  eventsEl.textContent = (status.recentEvents || [])
+    .map(formatEvent)
+    .join('\n') || 'No events yet — browse a site, then reopen popup.';
 }
 
 function loadStatus() {
