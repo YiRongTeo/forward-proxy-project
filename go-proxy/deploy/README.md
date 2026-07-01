@@ -149,6 +149,41 @@ sudo firewall-cmd --reload
 
 Port `8081` is the forward proxy; port `9001` is the read-only admin API.
 
+## Troubleshooting `ERR_PROXY_CONNECTION_FAILED`
+
+Chrome cannot open a TCP connection to the proxy at all (before CONNECT/auth). Check in order:
+
+1. **Service running and listening**
+   ```bash
+   sudo systemctl status go-proxy
+   sudo ss -tlnp | grep 8081
+   sudo journalctl -u go-proxy --since "15 min ago"
+   ```
+
+2. **Correct host in extension Options**
+   - Chrome on the **same** RHEL host → `localhost` or `127.0.0.1`
+   - Chrome on your **laptop/another PC** → the RHEL server IP/hostname (**not** `localhost`)
+
+3. **Correct port and scheme**
+   - Go proxy default: port **8081**
+   - Extension scheme must match listener:
+     - Empty `tls.certFile` / `tls.keyFile` in config → extension **http**
+     - TLS cert files present and readable → extension **https**
+
+4. **Firewalld**
+   ```bash
+   sudo firewall-cmd --permanent --add-port=8081/tcp
+   sudo firewall-cmd --reload
+   ```
+
+5. **Quick test from the Chrome machine**
+   ```bash
+   nc -zv PROXY_HOST 8081
+   curl -v -x http://PROXY_HOST:8081 -U 'session1234:session' https://google.com -I
+   ```
+
+Use extension **Options → Test proxy port** after setting host/port/scheme.
+
 ## Troubleshooting `ERR_TUNNEL_CONNECTION_FAILED`
 
 1. **Proxy scheme mismatch** — if `/etc/go-proxy/config.json` has non-empty `tls.certFile` / `tls.keyFile` and the files exist, the proxy listens on HTTPS. Set the Chrome extension proxy scheme to `https`, not `http`.

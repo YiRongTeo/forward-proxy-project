@@ -14,6 +14,11 @@
   <body>
     <h1>Forward Proxy Settings</h1>
     <p>Configure which proxy server the extension routes Chrome through.</p>
+    <p style="font-size:12px;color:#555;line-height:1.4;">
+      Go proxy default port is <strong>8081</strong> (Node is 8080). If the proxy runs on
+      another machine, use that server&apos;s IP or hostname — <strong>not</strong>
+      <code>localhost</code> unless Chrome runs on the same host.
+    </p>
     <label for="proxyScheme">Proxy scheme</label>
     <select id="proxyScheme">
       <option value="http">http</option>
@@ -24,6 +29,7 @@
     <label for="proxyPort">Proxy port</label>
     <input id="proxyPort" type="number" />
     <button id="save">Save</button>
+    <button id="test" type="button">Test proxy port</button>
     <p class="status" id="status"></p>
     <script src="options.js"></script>
   </body>
