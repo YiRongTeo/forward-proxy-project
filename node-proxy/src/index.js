@@ -15,7 +15,8 @@ const tlsOptions = loadTlsOptions(config.tls);
 const valkeyMode = useSentinel(config.valkey)
   ? `sentinel:${config.valkey.sentinel.masterName}`
   : `direct:${config.valkey.url}`;
-console.log(JSON.stringify({ msg: 'valkey configured', mode: valkeyMode }));
+const valkeyTls = config.valkey.tls?.enabled ? '+tls' : '';
+console.log(JSON.stringify({ msg: 'valkey configured', mode: `${valkeyMode}${valkeyTls}` }));
 
 const sessionStore = new SessionStore({ valkey: config.valkey });
 const allowlist = createAllowlist(config.allowedClientIps);

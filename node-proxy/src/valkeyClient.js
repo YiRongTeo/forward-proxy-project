@@ -1,6 +1,7 @@
 'use strict';
 
 const IoValkey = require('iovalkey');
+const { loadTlsOptions, tlsUrlScheme } = require('./valkeyTls');
 
 const CLIENT_OPTS = {
   enableReadyCheck: false,
@@ -31,10 +32,22 @@ function useSentinel(valkeyConfig) {
   );
 }
 
+function applyTlsOptions(options, tlsOptions) {
+  if (!tlsOptions) return options;
+  return {
+    ...options,
+    tls: tlsOptions,
+    sentinelTLS: tlsOptions,
+    enableTLSForSentinelMode: true,
+  };
+}
+
 function createValkeyClient(valkeyConfig) {
+  const tlsOptions = loadTlsOptions(valkeyConfig?.tls);
+
   if (useSentinel(valkeyConfig)) {
     const { masterName, sentinels, password, sentinelPassword, db } = valkeyConfig.sentinel;
-    const options = {
+    let options = {
       ...CLIENT_OPTS,
       sentinels: parseSentinelAddrs(sentinels),
       name: masterName,
@@ -42,11 +55,17 @@ function createValkeyClient(valkeyConfig) {
     if (password) options.password = password;
     if (sentinelPassword) options.sentinelPassword = sentinelPassword;
     if (db !== undefined && db !== null) options.db = Number(db);
+    options = applyTlsOptions(options, tlsOptions);
     return new IoValkey(options);
   }
 
-  const url = valkeyConfig?.url || 'redis://127.0.0.1:6379';
-  return new IoValkey(url, CLIENT_OPTS);
+  let url = valkeyConfig?.url || 'redis://127.0.0.1:6379';
+  if (tlsOptions) {
+    url = tlsUrlScheme(url);
+  }
+
+  const options = tlsOptions ? { ...CLIENT_OPTS, tls: tlsOptions } : CLIENT_OPTS;
+  return new IoValkey(url, options);
 }
 
 module.exports = { createValkeyClient, useSentinel, parseSentinelAddrs };

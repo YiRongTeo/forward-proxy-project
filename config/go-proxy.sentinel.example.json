@@ -1,5 +1,13 @@
 {
-  "valkeyUrl": "redis://valkey-master:6379",
+  "valkeyUrl": "rediss://valkey-master:6379",
+  "valkeyTls": {
+    "enabled": true,
+    "caFile": "/certs/valkey-ca.crt",
+    "certFile": "/certs/valkey-client.crt",
+    "keyFile": "/certs/valkey-client.key",
+    "serverName": "valkey-master",
+    "insecureSkipVerify": false
+  },
   "valkeySentinel": {
     "masterName": "valkey-master",
     "sentinels": [

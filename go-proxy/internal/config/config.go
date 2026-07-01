@@ -20,14 +20,25 @@ type ValkeySentinel struct {
 	DB               int      `json:"db"`
 }
 
+type ValkeyTLS struct {
+	Enabled            bool   `json:"enabled"`
+	CAFile             string `json:"caFile"`
+	CertFile           string `json:"certFile"`
+	KeyFile            string `json:"keyFile"`
+	ServerName         string `json:"serverName"`
+	InsecureSkipVerify bool   `json:"insecureSkipVerify"`
+}
+
 type Valkey struct {
 	URL      string          `json:"-"`
 	Sentinel *ValkeySentinel `json:"-"`
+	TLS      ValkeyTLS       `json:"-"`
 }
 
 type File struct {
 	ValkeyURL              string          `json:"valkeyUrl"`
 	ValkeySentinel         *ValkeySentinel `json:"valkeySentinel"`
+	ValkeyTLS              ValkeyTLS       `json:"valkeyTls"`
 	ProxyPort              int             `json:"proxyPort"`
 	AdminPort              int             `json:"adminPort"`
 	ProxyTimeoutMs         int             `json:"proxyTimeoutMs"`
@@ -64,7 +75,10 @@ func defaultFile() File {
 }
 
 func buildValkeyConfig(file File) Valkey {
-	valkey := Valkey{URL: file.ValkeyURL}
+	valkey := Valkey{
+		URL: file.ValkeyURL,
+		TLS: file.ValkeyTLS,
+	}
 	if file.ValkeySentinel != nil &&
 		file.ValkeySentinel.MasterName != "" &&
 		len(file.ValkeySentinel.Sentinels) > 0 {

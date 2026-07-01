@@ -156,7 +156,15 @@ Docker Compose mounts each file to `/config/config.json` inside the container.
 
 ```json
 {
-  "valkeyUrl": "redis://valkey:6379",
+  "valkeyUrl": "rediss://valkey:6379",
+  "valkeyTls": {
+    "enabled": false,
+    "caFile": "",
+    "certFile": "",
+    "keyFile": "",
+    "serverName": "",
+    "insecureSkipVerify": false
+  },
   "proxyPort": 8080,
   "adminPort": 3001,
   "proxyTimeoutMs": 30000,
@@ -174,6 +182,11 @@ Docker Compose mounts each file to `/config/config.json` inside the container.
 | Field | Description |
 |-------|-------------|
 | `defaultAllowedDomains` | Optional list of domains allowed for every valid session (in addition to the session's Valkey domain). Uses the same suffix matching rules. Default: `[]`. |
+| `valkeyTls.enabled` | Enable TLS for Valkey and Sentinel connections. Default: `false`. |
+| `valkeyTls.caFile` | CA bundle to verify the Valkey/Sentinel server certificate. |
+| `valkeyTls.certFile` / `valkeyTls.keyFile` | Optional client certificate for mutual TLS. Both must be set together. |
+| `valkeyTls.serverName` | TLS SNI / certificate hostname when it differs from the connection host. |
+| `valkeyTls.insecureSkipVerify` | Skip server certificate verification (development only). Default: `false`. |
 
 **Local run:**
 
@@ -204,9 +217,19 @@ Config lookup order when `--config` / `-config` is omitted:
 
 When `valkeySentinel` is set with `masterName` and `sentinels`, both proxies connect via **Sentinel failover** instead of a direct `valkeyUrl`. The URL is still used as a fallback label and for tooling (e.g. session seeding).
 
+When Valkey and Sentinel require TLS, set `valkeyTls.enabled` to `true`. The same TLS settings apply to **both** Sentinel discovery connections and the Valkey master connection. Use `rediss://` in `valkeyUrl` or leave `redis://` — the proxies upgrade to TLS when `valkeyTls.enabled` is true.
+
 ```json
 {
-  "valkeyUrl": "redis://valkey-master:6379",
+  "valkeyUrl": "rediss://valkey-master:6379",
+  "valkeyTls": {
+    "enabled": true,
+    "caFile": "/certs/valkey-ca.crt",
+    "certFile": "/certs/valkey-client.crt",
+    "keyFile": "/certs/valkey-client.key",
+    "serverName": "valkey-master",
+    "insecureSkipVerify": false
+  },
   "valkeySentinel": {
     "masterName": "valkey-master",
     "sentinels": [

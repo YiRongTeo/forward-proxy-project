@@ -1,5 +1,13 @@
 {
   "valkeyUrl": "redis://valkey:6379",
+  "valkeyTls": {
+    "enabled": false,
+    "caFile": "",
+    "certFile": "",
+    "keyFile": "",
+    "serverName": "",
+    "insecureSkipVerify": false
+  },
   "proxyPort": 8080,
   "adminPort": 3001,
   "proxyTimeoutMs": 30000,

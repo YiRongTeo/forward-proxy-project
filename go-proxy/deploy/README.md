@@ -40,16 +40,16 @@ sudo make install-user install-bin install-config install-service
 
 `make install-bin` copies `bin/go-proxy` to `/usr/local/bin/go-proxy` (the path referenced by the systemd unit).
 
-Edit `/etc/go-proxy/config.json` for your environment (`valkeyUrl`, `allowedClientIps`, ports, TLS paths).
+Edit `/etc/go-proxy/config.json` for your environment (`valkeyUrl`, `valkeyTls`, `allowedClientIps`, ports).
 
-If TLS is enabled, place certificate files in `/etc/go-proxy/certs/` and ensure the `go-proxy` user can read them:
+**Proxy listener TLS** (`tls.certFile` / `tls.keyFile`): place files in `/etc/go-proxy/certs/` and ensure the `go-proxy` user can read them:
 
 ```bash
 sudo chown root:go-proxy /etc/go-proxy/certs/tls.crt /etc/go-proxy/certs/tls.key
 sudo chmod 0640 /etc/go-proxy/certs/tls.crt /etc/go-proxy/certs/tls.key
 ```
 
-If TLS is not used, set empty strings in the config:
+If proxy listener TLS is not used, set empty strings:
 
 ```json
 "tls": {
@@ -57,6 +57,8 @@ If TLS is not used, set empty strings in the config:
   "keyFile": ""
 }
 ```
+
+**Valkey / Sentinel TLS** (`valkeyTls`): set `enabled: true` and point `caFile` (and optional client cert/key) at files readable by the `go-proxy` user. The same settings secure both Sentinel and Valkey master connections.
 
 ## 3. SELinux (if enforcing)
 

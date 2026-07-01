@@ -21,6 +21,29 @@ const DEFAULTS = {
   defaultAllowedDomains: [],
 };
 
+function parseValkeyTls(parsed) {
+  const input = parsed.valkeyTls;
+  if (!input) {
+    return {
+      enabled: false,
+      caFile: '',
+      certFile: '',
+      keyFile: '',
+      serverName: '',
+      insecureSkipVerify: false,
+    };
+  }
+
+  return {
+    enabled: Boolean(input.enabled),
+    caFile: input.caFile || '',
+    certFile: input.certFile || '',
+    keyFile: input.keyFile || '',
+    serverName: input.serverName || '',
+    insecureSkipVerify: Boolean(input.insecureSkipVerify),
+  };
+}
+
 function parseValkeyConfig(parsed) {
   const sentinelInput = parsed.valkeySentinel;
   let sentinel = null;
@@ -38,6 +61,7 @@ function parseValkeyConfig(parsed) {
   return {
     url: parsed.valkeyUrl || DEFAULTS.valkey.url,
     sentinel,
+    tls: parseValkeyTls(parsed),
   };
 }
 
