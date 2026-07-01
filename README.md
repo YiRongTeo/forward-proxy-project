@@ -182,6 +182,10 @@ node node-proxy/src/index.js --config config/node-proxy.json
 go run ./go-proxy/cmd/proxy -config config/go-proxy.json
 ```
 
+### RHEL systemd service (Go proxy)
+
+To run the Go proxy as a systemd unit on RHEL 8/9, see [`go-proxy/deploy/README.md`](go-proxy/deploy/README.md). The unit file is [`go-proxy/deploy/go-proxy.service`](go-proxy/deploy/go-proxy.service).
+
 Config lookup order when `--config` / `-config` is omitted:
 
 1. `/config/config.json` (Docker default)

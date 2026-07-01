@@ -1,0 +1,19 @@
+{
+  "valkeyUrl": "redis://127.0.0.1:6379",
+  "proxyPort": 8081,
+  "adminPort": 9001,
+  "proxyTimeoutMs": 30000,
+  "allowedClientIps": [
+    "127.0.0.1",
+    "::1",
+    "10.0.0.0/8",
+    "192.168.0.0/16"
+  ],
+  "trustProxyHeaders": false,
+  "sessionHeader": "X-Session-ID",
+  "defaultAllowedDomains": [],
+  "tls": {
+    "certFile": "/etc/go-proxy/certs/tls.crt",
+    "keyFile": "/etc/go-proxy/certs/tls.key"
+  }
+}
