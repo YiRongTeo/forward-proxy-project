@@ -62,24 +62,28 @@ function proxyAuthCredentials(sessionId) {
   };
 }
 
-function respondToProxyAuth(details, callback) {
-  const finish = (sessionId) => {
-    if (sessionId && isOurProxyChallenge(details)) {
-      callback(proxyAuthCredentials(sessionId));
-      return;
-    }
-    callback({});
-  };
+function handleProxyAuth(details) {
+  console.log('[forward-proxy-session] onAuthRequired', {
+    isProxy: details.isProxy,
+    challenger: details.challenger,
+    method: details.method,
+    url: details.url,
+    hasSession: Boolean(cachedConfig.sessionId),
+    configuredProxy: `${cachedConfig.proxyScheme}://${cachedConfig.proxyHost}:${cachedConfig.proxyPort}`,
+  });
 
-  if (cachedConfig.sessionId) {
-    finish(cachedConfig.sessionId);
-    return;
+  if (!cachedConfig.sessionId) {
+    console.warn('[forward-proxy-session] proxy auth requested but sessionId is empty');
+    return {};
   }
 
-  chrome.storage.local.get({ sessionId: '' }, ({ sessionId }) => {
-    syncCachedConfig({ ...cachedConfig, sessionId });
-    finish(sessionId || '');
-  });
+  if (isOurProxyChallenge(details)) {
+    console.log('[forward-proxy-session] supplying Proxy-Authorization credentials');
+    return proxyAuthCredentials(cachedConfig.sessionId);
+  }
+
+  console.warn('[forward-proxy-session] ignoring auth challenge (not our proxy)', details.challenger);
+  return {};
 }
 
 function registerProxyAuthHandler() {
@@ -87,11 +91,9 @@ function registerProxyAuthHandler() {
   registerProxyAuthHandler.registered = true;
 
   chrome.webRequest.onAuthRequired.addListener(
-    (details, callback) => {
-      respondToProxyAuth(details, callback);
-    },
+    handleProxyAuth,
     { urls: ['<all_urls>'] },
-    ['asyncBlocking']
+    ['blocking']
   );
 }
 
@@ -127,7 +129,7 @@ async function applyProxySettings() {
       singleProxy: {
         scheme: proxyScheme === 'https' ? 'https' : 'http',
         host: proxyHost,
-        port: parseInt(proxyPort, 10) || 8080,
+        port: parseInt(proxyPort, 10) || DEFAULT_PROXY.port,
       },
       bypassList: ['<local>'],
     },
@@ -172,15 +174,27 @@ function registerKeepAlive() {
 }
 
 async function getRuleStatus() {
-  const [dynamicRules, sessionRules] = await Promise.all([
+  const [dynamicRules, sessionRules, proxySettings] = await Promise.all([
     chrome.declarativeNetRequest.getDynamicRules(),
     chrome.declarativeNetRequest.getSessionRules(),
+    new Promise((resolve) => {
+      chrome.proxy.settings.get({ incognito: false }, (details) => resolve(details.value));
+    }),
   ]);
+
+  const configured = `${cachedConfig.proxyScheme}://${cachedConfig.proxyHost}:${cachedConfig.proxyPort}`;
+  const activeProxy = proxySettings?.rules?.singleProxy;
+  const active = activeProxy
+    ? `${activeProxy.scheme}://${activeProxy.host}:${activeProxy.port}`
+    : '(none)';
 
   return {
     dynamicRuleCount: dynamicRules.length,
     sessionRuleCount: sessionRules.length,
     connectAuth: cachedConfig.sessionId ? 'webRequest.onAuthRequired' : 'none',
+    configuredProxy: configured,
+    activeProxy: active,
+    proxyMatches: configured === active,
   };
 }
 
@@ -193,6 +207,9 @@ async function refresh() {
   console.log('[forward-proxy-session] refreshed', {
     sessionId: sessionId ? `${sessionId.slice(0, 4)}...` : '(empty)',
     connectAuth: status.connectAuth,
+    configuredProxy: status.configuredProxy,
+    activeProxy: status.activeProxy,
+    proxyMatches: status.proxyMatches,
     ...status,
   });
   return status;

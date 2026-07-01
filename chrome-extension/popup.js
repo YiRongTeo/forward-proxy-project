@@ -9,11 +9,21 @@ function renderStatus(response) {
   }
 
   const { config, status } = response;
+  const warnings = [];
+  if (!config.sessionId) {
+    warnings.push('No session ID saved');
+  }
+  if (status.proxyMatches === false) {
+    warnings.push('Chrome proxy differs from extension settings — open Options and Save');
+  }
   metaEl.textContent = [
     `Proxy: ${config.proxyScheme}://${config.proxyHost}:${config.proxyPort}`,
-    `HTTP rules: ${status.dynamicRuleCount} dynamic, ${status.sessionRuleCount} session`,
-    `CONNECT: ${status.connectAuth || 'webRequest.onAuthRequired'}`,
-  ].join(' | ');
+    `Active: ${status.activeProxy || 'unknown'}`,
+    `CONNECT auth: ${status.connectAuth || 'none'}`,
+    warnings.length ? `⚠ ${warnings.join('; ')}` : '',
+  ]
+    .filter(Boolean)
+    .join(' | ');
 }
 
 function loadStatus() {

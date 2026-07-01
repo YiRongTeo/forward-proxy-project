@@ -27,12 +27,12 @@
     <p class="status" id="status"></p>
     <p class="meta" id="meta"></p>
     <div class="hint">
-      HTTPS sites use a proxy <strong>CONNECT</strong> tunnel. Chrome cannot inject
-      headers on that request via declarativeNetRequest; the extension answers the
-      proxy <strong>407</strong> challenge with your session ID as
-      <code>Proxy-Authorization</code>. Plain HTTP requests still get
-      <code>x-session-id</code>. After saving, reload the extension if CONNECT still
-      fails.
+      HTTPS uses CONNECT. Chrome cannot inject headers on CONNECT — the extension
+      answers the proxy <strong>407</strong> with your session ID (same as
+      <code>curl -U 'session1234:session'</code>). Open <strong>Options</strong>
+      and set port <strong>8081</strong> for Go (8080 for Node). Reload the
+      extension after changes; check the service worker console for
+      <code>onAuthRequired</code> logs.
     </div>
     <script src="rules.js"></script>
     <script src="popup.js"></script>
