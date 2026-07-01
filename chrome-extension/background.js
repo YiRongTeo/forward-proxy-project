@@ -1,24 +1,6 @@
-const SESSION_HEADER = 'x-session-id';
-const HEADER_RULE_ID = 1;
-const DEFAULT_PROXY = { host: 'localhost', port: 8080, scheme: 'http' };
+importScripts('rules.js');
 
-const ALL_RESOURCE_TYPES = [
-  'main_frame',
-  'sub_frame',
-  'stylesheet',
-  'script',
-  'image',
-  'font',
-  'object',
-  'xmlhttprequest',
-  'ping',
-  'csp_report',
-  'media',
-  'websocket',
-  'webtransport',
-  'webbundle',
-  'other',
-];
+const DEFAULT_PROXY = { host: 'localhost', port: 8080, scheme: 'http' };
 
 function getConfig() {
   return new Promise((resolve) => {
@@ -82,29 +64,12 @@ async function applyProxySettings() {
   });
 }
 
-async function applySessionHeaderRule(sessionId) {
+async function applyDynamicHeaderRules(sessionId) {
   await new Promise((resolve, reject) => {
     chrome.declarativeNetRequest.updateDynamicRules(
       {
-        removeRuleIds: [HEADER_RULE_ID],
-        addRules: sessionId
-          ? [
-              {
-                id: HEADER_RULE_ID,
-                priority: 1,
-                action: {
-                  type: 'modifyHeaders',
-                  requestHeaders: [
-                    { header: SESSION_HEADER, operation: 'set', value: sessionId },
-                  ],
-                },
-                condition: {
-                  urlFilter: '|http*',
-                  resourceTypes: ALL_RESOURCE_TYPES,
-                },
-              },
-            ]
-          : [],
+        removeRuleIds: allRuleIds(DYNAMIC_RULE_IDS),
+        addRules: buildDynamicHeaderRules(sessionId),
       },
       () => {
         if (chrome.runtime.lastError) {
@@ -123,6 +88,11 @@ function registerProxyAuthHandler() {
 
   chrome.webRequest.onAuthRequired.addListener(
     (details, callback) => {
+      if (!details.isProxy) {
+        callback({});
+        return;
+      }
+
       getConfig()
         .then(({ sessionId }) => {
           if (!sessionId) {
@@ -143,15 +113,30 @@ function registerProxyAuthHandler() {
   );
 }
 
+async function getRuleStatus() {
+  const [dynamicRules, sessionRules] = await Promise.all([
+    chrome.declarativeNetRequest.getDynamicRules(),
+    chrome.declarativeNetRequest.getSessionRules(),
+  ]);
+
+  return {
+    dynamicRuleCount: dynamicRules.length,
+    sessionRuleCount: sessionRules.length,
+  };
+}
+
 async function refresh() {
   await migrateLegacySyncStorage();
   const { sessionId } = await getConfig();
   await applyProxySettings();
-  await applySessionHeaderRule(sessionId);
+  await applyDynamicHeaderRules(sessionId);
   registerProxyAuthHandler();
+  const status = await getRuleStatus();
   console.log('[forward-proxy-session] refreshed', {
     sessionId: sessionId ? `${sessionId.slice(0, 4)}...` : '(empty)',
+    ...status,
   });
+  return status;
 }
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -172,10 +157,38 @@ chrome.storage.onChanged.addListener((changes, area) => {
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === 'refresh') {
     refresh()
-      .then(() => sendResponse({ ok: true }))
+      .then((status) => sendResponse({ ok: true, status }))
       .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;
   }
+
+  if (message?.type === 'applySessionRules') {
+    const sessionId = message.sessionId || '';
+    chrome.declarativeNetRequest.updateSessionRules(
+      {
+        removeRuleIds: allRuleIds(SESSION_RULE_IDS),
+        addRules: buildSessionHeaderRules(sessionId),
+      },
+      () => {
+        if (chrome.runtime.lastError) {
+          sendResponse({ ok: false, error: chrome.runtime.lastError.message });
+          return;
+        }
+        refresh()
+          .then((status) => sendResponse({ ok: true, status }))
+          .catch((err) => sendResponse({ ok: false, error: err.message }));
+      }
+    );
+    return true;
+  }
+
+  if (message?.type === 'getStatus') {
+    Promise.all([getConfig(), getRuleStatus()])
+      .then(([config, status]) => sendResponse({ ok: true, config, status }))
+      .catch((err) => sendResponse({ ok: false, error: err.message }));
+    return true;
+  }
+
   return false;
 });
 

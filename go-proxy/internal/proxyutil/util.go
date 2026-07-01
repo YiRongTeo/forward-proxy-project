@@ -56,8 +56,11 @@ func LogEvent(fields map[string]interface{}) {
 }
 
 func SessionID(r *http.Request, sessionHeader string) string {
-	if id := strings.TrimSpace(r.Header.Get(sessionHeader)); id != "" {
-		return id
+	candidates := []string{sessionHeader, "X-Session-ID", "x-session-id"}
+	for _, name := range candidates {
+		if id := strings.TrimSpace(r.Header.Get(name)); id != "" {
+			return id
+		}
 	}
 
 	auth := r.Header.Get("Proxy-Authorization")

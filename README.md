@@ -71,8 +71,10 @@ The proxy admin API only supports **read** operations: `GET /health` and `GET /s
 The extension:
 
 - Sets Chrome's forward proxy via `chrome.proxy.settings`
-- Sends the session ID as **`X-Session-ID`** (via `declarativeNetRequest`) and as **proxy auth username** (via `webRequestAuthProvider`) — the reliable path for HTTPS/CONNECT through a forward proxy
-- After saving the session ID in the popup, reload the extension once if traffic still fails (`chrome://extensions` → Reload)
+- Sends the session ID on the **proxy CONNECT/HTTP request** as `x-session-id` (via declarativeNetRequest, including a CONNECT-specific rule) and as **proxy auth username** (via `webRequestAuthProvider`)
+- Applies **session rules on Save** (user gesture) for reliable CONNECT header injection
+
+**DevTools note:** When viewing `https://google.com` in the Network tab, you will **not** see `x-session-id` on the page request — that request is tunneled after CONNECT. Filter by method **CONNECT** to inspect headers sent to the proxy.
 
 ## Manual curl Tests
 

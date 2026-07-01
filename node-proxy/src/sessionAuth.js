@@ -1,9 +1,16 @@
 'use strict';
 
 function getSessionId(req, sessionHeader) {
-  const headerValue = req.headers[sessionHeader.toLowerCase()];
-  if (headerValue) {
-    return (Array.isArray(headerValue) ? headerValue[0] : headerValue).trim();
+  const names = [
+    sessionHeader.toLowerCase(),
+    'x-session-id',
+  ];
+
+  for (const name of names) {
+    const headerValue = req.headers[name];
+    if (headerValue) {
+      return (Array.isArray(headerValue) ? headerValue[0] : headerValue).trim();
+    }
   }
 
   const proxyAuth = req.headers['proxy-authorization'];
