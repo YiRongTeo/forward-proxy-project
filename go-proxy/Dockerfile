@@ -10,4 +10,4 @@ FROM alpine:3.20
 RUN apk add --no-cache ca-certificates
 COPY --from=builder /proxy /proxy
 EXPOSE 8081 9001
-ENTRYPOINT ["/proxy"]
+ENTRYPOINT ["/proxy", "-config", "/config/config.json"]

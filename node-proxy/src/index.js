@@ -1,30 +1,25 @@
 'use strict';
 
 const http = require('http');
+const { loadConfig } = require('./config');
 const { SessionStore } = require('./sessionStore');
 const { createAllowlist } = require('./ipAllowlist');
 const { createProxyHandler, handleConnect } = require('./proxyHandler');
 const { createAdminServer } = require('./admin');
 const { loadTlsOptions, createServer } = require('./tls');
 
-const valkeyUrl = process.env.VALKEY_URL || 'redis://127.0.0.1:6379';
-const timeoutMs = parseInt(process.env.PROXY_TIMEOUT_MS || '30000', 10);
-const allowedIps = (process.env.ALLOWED_CLIENT_IPS || '127.0.0.1,::1').split(',');
-const trustProxyHeaders = process.env.TRUST_PROXY_HEADERS === 'true';
-const sessionHeader = process.env.SESSION_HEADER || 'X-Session-ID';
-const proxyPort = parseInt(process.env.PROXY_PORT || '8080', 10);
-const adminPort = parseInt(process.env.ADMIN_PORT || '3001', 10);
-const tlsOptions = loadTlsOptions();
+const config = loadConfig();
+const tlsOptions = loadTlsOptions(config.tls);
 
-const sessionStore = new SessionStore({ valkeyUrl });
-const allowlist = createAllowlist(allowedIps);
+const sessionStore = new SessionStore({ valkeyUrl: config.valkeyUrl });
+const allowlist = createAllowlist(config.allowedClientIps);
 
 const proxyOptions = {
   allowlist,
-  trustProxyHeaders,
+  trustProxyHeaders: config.trustProxyHeaders,
   sessionStore,
-  sessionHeader,
-  timeoutMs,
+  sessionHeader: config.sessionHeader,
+  timeoutMs: config.proxyTimeoutMs,
 };
 
 const proxyHandler = createProxyHandler(proxyOptions);
@@ -80,15 +75,20 @@ proxyServer.on('connect', (req, clientSocket, head) => {
 const adminServer = createAdminServer(sessionStore, tlsOptions);
 
 function logListen(label, port) {
-  console.log(JSON.stringify({ msg: label, port, tls: Boolean(tlsOptions) }));
+  console.log(JSON.stringify({
+    msg: label,
+    port,
+    tls: Boolean(tlsOptions),
+    config: config.configPath,
+  }));
 }
 
-proxyServer.listen(proxyPort, '0.0.0.0', () => {
-  logListen('node forward proxy listening', proxyPort);
+proxyServer.listen(config.proxyPort, '0.0.0.0', () => {
+  logListen('node forward proxy listening', config.proxyPort);
 });
 
-adminServer.listen(adminPort, '0.0.0.0', () => {
-  logListen('node admin API listening', adminPort);
+adminServer.listen(config.adminPort, '0.0.0.0', () => {
+  logListen('node admin API listening', config.adminPort);
 });
 
 process.on('SIGTERM', async () => {

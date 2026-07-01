@@ -35,10 +35,10 @@ docker compose up --build
 | node-proxy | 8080, 3001 | Node forward proxy + admin API |
 | go-proxy | 8081, 9001 | Go forward proxy + admin API |
 
-Copy environment defaults:
+Copy and edit config files as needed:
 
 ```bash
-cp .env.example .env
+# Defaults: config/node-proxy.json, config/go-proxy.json
 ```
 
 ## Create a Session
@@ -114,16 +114,16 @@ Matching is suffix-safe: host must equal the domain or end with `.` + domain.
 
 ## TLS (when available)
 
-Both proxies listen with **HTTPS** when `TLS_CERT_FILE` and `TLS_KEY_FILE` point to readable certificate and key files. Otherwise they fall back to plain HTTP.
+Both proxies read TLS paths from the config file. When `tls.certFile` and `tls.keyFile` point to readable files, proxy and admin listeners use HTTPS; otherwise they use HTTP.
 
-```bash
-# Place certs in ./certs/ (see .env.example)
-export TLS_CERT_FILE=/certs/tls.crt
-export TLS_KEY_FILE=/certs/tls.key
-docker compose up --build
+```json
+"tls": {
+  "certFile": "/certs/tls.crt",
+  "keyFile": "/certs/tls.key"
+}
 ```
 
-Use `https` proxy scheme in the Chrome extension when TLS is enabled. Upstream HTTPS continues to use CONNECT tunneling.
+Place certificates in [`certs/`](certs/) and update the config paths. Use `https` proxy scheme in the Chrome extension when TLS is enabled.
 
 ## Admin API (read-only)
 
@@ -135,18 +135,45 @@ Use `https` proxy scheme in the Chrome extension when TLS is enabled. Upstream H
 
 ## Configuration
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `VALKEY_URL` | `redis://valkey:6379` | Valkey connection URL |
-| `SESSION_TTL_SECONDS` | `3600` | Session TTL |
-| `PROXY_TIMEOUT_MS` | `30000` | Upstream timeout |
-| `ALLOWED_CLIENT_IPS` | `127.0.0.1,::1,...` | Client IP allowlist (CIDR supported) |
-| `TRUST_PROXY_HEADERS` | `false` | Use `X-Forwarded-For` when behind LB |
-| `SESSION_HEADER` | `X-Session-ID` | Session header name |
-| `TLS_CERT_FILE` | _(empty)_ | Path to TLS certificate; enables HTTPS when set with key |
-| `TLS_KEY_FILE` | _(empty)_ | Path to TLS private key |
-| `PROXY_PORT` | `8080` / `8081` | Forward proxy port |
-| `ADMIN_PORT` | `3001` / `9001` | Admin API port |
+Both proxies load settings from a **JSON config file** (not environment variables).
+
+| File | Used by | Default ports |
+|------|---------|---------------|
+| [`config/node-proxy.json`](config/node-proxy.json) | Node proxy | 8080 / 3001 |
+| [`config/go-proxy.json`](config/go-proxy.json) | Go proxy | 8081 / 9001 |
+
+Docker Compose mounts each file to `/config/config.json` inside the container.
+
+**Example** (`config/node-proxy.json`):
+
+```json
+{
+  "valkeyUrl": "redis://valkey:6379",
+  "proxyPort": 8080,
+  "adminPort": 3001,
+  "proxyTimeoutMs": 30000,
+  "allowedClientIps": ["127.0.0.1", "::1", "172.16.0.0/12"],
+  "trustProxyHeaders": false,
+  "sessionHeader": "X-Session-ID",
+  "tls": {
+    "certFile": "/certs/tls.crt",
+    "keyFile": "/certs/tls.key"
+  }
+}
+```
+
+**Local run:**
+
+```bash
+node node-proxy/src/index.js --config config/node-proxy.json
+go run ./go-proxy/cmd/proxy -config config/go-proxy.json
+```
+
+Config lookup order when `--config` / `-config` is omitted:
+
+1. `/config/config.json` (Docker default)
+2. `./config.json`
+3. `./config/node-proxy.json` or `./config/go-proxy.json`
 
 ## Benchmarks
 
@@ -173,6 +200,9 @@ Compare Node (`8080`) vs Go (`8081`) using RPS, p99 latency, and 403 rates on de
 ## Project Layout
 
 ```
+├── config/
+│   ├── node-proxy.json   # Node proxy config
+│   └── go-proxy.json     # Go proxy config
 ├── docker-compose.yml
 ├── chrome-extension/     # Chrome MV3 extension
 ├── node-proxy/           # Node.js forward proxy

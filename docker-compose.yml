@@ -15,19 +15,9 @@ services:
     ports:
       - "8080:8080"
       - "3001:3001"
-    environment:
-      VALKEY_URL: redis://valkey:6379
-      SESSION_TTL_SECONDS: "3600"
-      PROXY_TIMEOUT_MS: "30000"
-      ALLOWED_CLIENT_IPS: "127.0.0.1,::1,172.16.0.0/12,10.0.0.0/8,192.168.0.0/16"
-      TRUST_PROXY_HEADERS: "false"
-      SESSION_HEADER: "X-Session-ID"
-      PROXY_PORT: "8080"
-      ADMIN_PORT: "3001"
-      TLS_CERT_FILE: ${TLS_CERT_FILE:-}
-      TLS_KEY_FILE: ${TLS_KEY_FILE:-}
     volumes:
-      - ${TLS_CERT_DIR:-./certs}:/certs:ro
+      - ./config/node-proxy.json:/config/config.json:ro
+      - ./certs:/certs:ro
     depends_on:
       valkey:
         condition: service_healthy
@@ -38,19 +28,9 @@ services:
     ports:
       - "8081:8081"
       - "9001:9001"
-    environment:
-      VALKEY_URL: redis://valkey:6379
-      SESSION_TTL_SECONDS: "3600"
-      PROXY_TIMEOUT_MS: "30000"
-      ALLOWED_CLIENT_IPS: "127.0.0.1,::1,172.16.0.0/12,10.0.0.0/8,192.168.0.0/16"
-      TRUST_PROXY_HEADERS: "false"
-      SESSION_HEADER: "X-Session-ID"
-      PROXY_PORT: "8081"
-      ADMIN_PORT: "9001"
-      TLS_CERT_FILE: ${TLS_CERT_FILE:-}
-      TLS_KEY_FILE: ${TLS_KEY_FILE:-}
     volumes:
-      - ${TLS_CERT_DIR:-./certs}:/certs:ro
+      - ./config/go-proxy.json:/config/config.json:ro
+      - ./certs:/certs:ro
     depends_on:
       valkey:
         condition: service_healthy

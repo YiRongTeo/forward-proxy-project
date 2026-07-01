@@ -2,9 +2,9 @@
 
 const fs = require('fs');
 
-function loadTlsOptions() {
-  const certPath = process.env.TLS_CERT_FILE;
-  const keyPath = process.env.TLS_KEY_FILE;
+function loadTlsOptions(tlsConfig) {
+  const certPath = tlsConfig?.certFile;
+  const keyPath = tlsConfig?.keyFile;
   if (!certPath || !keyPath) return null;
   if (!fs.existsSync(certPath) || !fs.existsSync(keyPath)) return null;
   return {

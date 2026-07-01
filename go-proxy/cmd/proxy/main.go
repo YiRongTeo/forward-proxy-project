@@ -1,30 +1,23 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"net/http"
-	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"go-proxy/internal/admin"
 	"go-proxy/internal/allowlist"
+	"go-proxy/internal/config"
 	"go-proxy/internal/proxy"
 	"go-proxy/internal/session"
 	"go-proxy/internal/tlsconfig"
 )
 
-func env(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
-}
-
-func startServer(server *http.Server, label, port string, tls tlsconfig.Config) {
+func startServer(server *http.Server, label, port string, tls tlsconfig.Config, configPath string) {
 	go func() {
-		log.Printf(`{"msg":%q,"port":%q,"tls":%t}`, label, port, tls.Enabled)
+		log.Printf(`{"msg":%q,"port":%q,"tls":%t,"config":%q}`, label, port, tls.Enabled, configPath)
 		var err error
 		if tls.Enabled {
 			err = server.ListenAndServeTLS(tls.CertFile, tls.KeyFile)
@@ -38,32 +31,41 @@ func startServer(server *http.Server, label, port string, tls tlsconfig.Config) 
 }
 
 func main() {
-	valkeyURL := env("VALKEY_URL", "redis://127.0.0.1:6379")
-	timeoutMs, _ := strconv.Atoi(env("PROXY_TIMEOUT_MS", "30000"))
-	allowedIPs := strings.Split(env("ALLOWED_CLIENT_IPS", "127.0.0.1,::1"), ",")
-	trustProxy := env("TRUST_PROXY_HEADERS", "false") == "true"
-	sessionHeader := env("SESSION_HEADER", "X-Session-ID")
-	proxyPort := env("PROXY_PORT", "8081")
-	adminPort := env("ADMIN_PORT", "9001")
-	tls := tlsconfig.LoadFromEnv()
+	configFlag := flag.String("config", "", "path to config JSON file")
+	flag.Parse()
 
-	store, err := session.NewStore(valkeyURL)
+	configPath, err := config.ResolvePath(*configFlag)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	allow, err := allowlist.Parse(allowedIPs)
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	tls := tlsconfig.Load(cfg.TLS)
+
+	store, err := session.NewStore(cfg.ValkeyURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	allow, err := allowlist.Parse(cfg.AllowedClientIps)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	proxyCfg := &proxy.Config{
 		Allowlist:         allow,
-		TrustProxyHeaders: trustProxy,
+		TrustProxyHeaders: cfg.TrustProxyHeaders,
 		SessionStore:      store,
-		SessionHeader:     sessionHeader,
-		Timeout:           time.Duration(timeoutMs) * time.Millisecond,
+		SessionHeader:     cfg.SessionHeader,
+		Timeout:           time.Duration(cfg.ProxyTimeoutMs) * time.Millisecond,
 	}
+
+	proxyPort := strconv.Itoa(cfg.ProxyPort)
+	adminPort := strconv.Itoa(cfg.AdminPort)
 
 	proxyServer := &http.Server{
 		Addr:         "0.0.0.0:" + proxyPort,
@@ -80,9 +82,9 @@ func main() {
 		},
 	}
 
-	startServer(proxyServer, "go forward proxy listening", proxyPort, tls)
+	startServer(proxyServer, "go forward proxy listening", proxyPort, tls, cfg.Path)
 
-	log.Printf(`{"msg":"go admin API listening","port":%q,"tls":%t}`, adminPort, tls.Enabled)
+	log.Printf(`{"msg":"go admin API listening","port":%q,"tls":%t,"config":%q}`, adminPort, tls.Enabled, cfg.Path)
 	if tls.Enabled {
 		if err := adminServer.ListenAndServeTLS(tls.CertFile, tls.KeyFile); err != nil && err != http.ErrServerClosed {
 			log.Fatal(err)

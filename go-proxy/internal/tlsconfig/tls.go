@@ -3,6 +3,8 @@ package tlsconfig
 import (
 	"log"
 	"os"
+
+	"go-proxy/internal/config"
 )
 
 type Config struct {
@@ -11,19 +13,17 @@ type Config struct {
 	KeyFile  string
 }
 
-func LoadFromEnv() Config {
-	certFile := os.Getenv("TLS_CERT_FILE")
-	keyFile := os.Getenv("TLS_KEY_FILE")
-	if certFile == "" || keyFile == "" {
+func Load(cfg config.TLS) Config {
+	if cfg.CertFile == "" || cfg.KeyFile == "" {
 		return Config{}
 	}
-	if _, err := os.Stat(certFile); err != nil {
-		log.Printf(`{"msg":"TLS cert file not available","path":%q}`, certFile)
+	if _, err := os.Stat(cfg.CertFile); err != nil {
+		log.Printf(`{"msg":"TLS cert file not available","path":%q}`, cfg.CertFile)
 		return Config{}
 	}
-	if _, err := os.Stat(keyFile); err != nil {
-		log.Printf(`{"msg":"TLS key file not available","path":%q}`, keyFile)
+	if _, err := os.Stat(cfg.KeyFile); err != nil {
+		log.Printf(`{"msg":"TLS key file not available","path":%q}`, cfg.KeyFile)
 		return Config{}
 	}
-	return Config{Enabled: true, CertFile: certFile, KeyFile: keyFile}
+	return Config{Enabled: true, CertFile: cfg.CertFile, KeyFile: cfg.KeyFile}
 }

@@ -1,9 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+CONFIG_FILE="${CONFIG_FILE:-config/node-proxy.json}"
+TTL="${SESSION_TTL_SECONDS:-3600}"
+
+if [[ -f "$CONFIG_FILE" ]] && command -v jq >/dev/null 2>&1; then
+  VALKEY_URL="$(jq -r '.valkeyUrl' "$CONFIG_FILE")"
+else
+  VALKEY_URL="${VALKEY_URL:-redis://localhost:6379}"
+fi
+
 VALKEY_HOST="${VALKEY_HOST:-localhost}"
 VALKEY_PORT="${VALKEY_PORT:-6379}"
-TTL="${SESSION_TTL_SECONDS:-3600}"
+if [[ "$VALKEY_URL" =~ redis://([^:/]+):?([0-9]*) ]]; then
+  VALKEY_HOST="${BASH_REMATCH[1]}"
+  if [[ -n "${BASH_REMATCH[2]}" ]]; then
+    VALKEY_PORT="${BASH_REMATCH[2]}"
+  fi
+fi
 
 seed_session() {
   local id="$1"
@@ -26,6 +40,7 @@ seed_session() {
 }
 
 echo "Seeding sessions directly in Valkey (proxies are read-only)..."
+echo "Using Valkey at ${VALKEY_HOST}:${VALKEY_PORT} from ${CONFIG_FILE}"
 seed_session "session1234" "google.com"
 seed_session "session5678" "example.com"
 echo "Done."
