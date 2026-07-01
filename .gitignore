@@ -1,0 +1,5 @@
+node_modules/
+.env
+benchmarks/results.md
+*.log
+/tmp/

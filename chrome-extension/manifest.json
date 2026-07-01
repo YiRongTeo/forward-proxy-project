@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Forward Proxy Session",
+  "version": "1.0.0",
+  "description": "Routes Chrome through the forward proxy and injects X-Session-ID on every request.",
+  "permissions": [
+    "proxy",
+    "storage",
+    "declarativeNetRequest",
+    "declarativeNetRequestWithHostAccess"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Forward Proxy Session"
+  },
+  "options_page": "options.html"
+}
