@@ -3,7 +3,7 @@ const portInput = document.getElementById('proxyPort');
 const schemeInput = document.getElementById('proxyScheme');
 const statusEl = document.getElementById('status');
 
-chrome.storage.sync.get(
+chrome.storage.local.get(
   { proxyHost: 'localhost', proxyPort: 8080, proxyScheme: 'http' },
   (cfg) => {
     hostInput.value = cfg.proxyHost;
@@ -16,7 +16,9 @@ document.getElementById('save').addEventListener('click', () => {
   const proxyHost = hostInput.value.trim() || 'localhost';
   const proxyPort = parseInt(portInput.value, 10) || 8080;
   const proxyScheme = schemeInput.value === 'https' ? 'https' : 'http';
-  chrome.storage.sync.set({ proxyHost, proxyPort, proxyScheme }, () => {
-    statusEl.textContent = 'Saved. Proxy settings applied.';
+  chrome.storage.local.set({ proxyHost, proxyPort, proxyScheme }, () => {
+    chrome.runtime.sendMessage({ type: 'refresh' }, () => {
+      statusEl.textContent = 'Saved. Proxy settings applied.';
+    });
   });
 });

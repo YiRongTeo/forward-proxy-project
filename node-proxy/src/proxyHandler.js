@@ -4,7 +4,8 @@ const http = require('http');
 const net = require('net');
 const { URL } = require('url');
 const { hostAllowed } = require('./domainMatch');
-const { stripHopByHop, sendJson, logEvent } = require('./util');
+const { getSessionId } = require('./sessionAuth');
+const { stripHopByHop, sendJson, sendProxyAuthRequired, logEvent } = require('./util');
 
 function parseConnectTarget(target) {
   const trimmed = target.trim();
@@ -29,10 +30,8 @@ function parseConnectTarget(target) {
   return { host, port };
 }
 
-function getSessionId(req, sessionHeader) {
-  const value = req.headers[sessionHeader.toLowerCase()];
-  if (Array.isArray(value)) return value[0]?.trim() || '';
-  return (value || '').trim();
+function getSessionIdFromRequest(req, sessionHeader) {
+  return getSessionId(req, sessionHeader);
 }
 
 async function authorizeRequest(req, socket, options) {
@@ -42,9 +41,9 @@ async function authorizeRequest(req, socket, options) {
     return { ok: false, status: 403, error: 'ip_not_allowed' };
   }
 
-  const sessionId = getSessionId(req, sessionHeader);
+  const sessionId = getSessionIdFromRequest(req, sessionHeader);
   if (!sessionId) {
-    return { ok: false, status: 400, error: 'missing_session_id' };
+    return { ok: false, status: 407, error: 'missing_session_id', authRequired: true };
   }
 
   const session = await sessionStore.getSession(sessionId);
@@ -79,12 +78,16 @@ function handleConnect(req, res, socket, head, options) {
   authorizeRequest(req, socket, options)
     .then((auth) => {
       if (!auth.ok) {
-        const body = {
-          error: auth.error,
-          requestedHost: host,
-        };
-        if (auth.sessionId) body.sessionId = auth.sessionId;
-        sendJson(res, auth.status, body);
+        if (auth.authRequired) {
+          sendProxyAuthRequired(res, { error: auth.error, requestedHost: host });
+        } else {
+          const body = {
+            error: auth.error,
+            requestedHost: host,
+          };
+          if (auth.sessionId) body.sessionId = auth.sessionId;
+          sendJson(res, auth.status, body);
+        }
         logEvent({
           clientIp: socket.remoteAddress,
           sessionId: auth.sessionId || null,
@@ -171,7 +174,11 @@ function handleHttp(req, res, options) {
   authorizeRequest(req, socket, options)
     .then(async (auth) => {
       if (!auth.ok) {
-        sendJson(res, auth.status, { error: auth.error, sessionId: auth.sessionId });
+        if (auth.authRequired) {
+          sendProxyAuthRequired(res, { error: auth.error });
+        } else {
+          sendJson(res, auth.status, { error: auth.error, sessionId: auth.sessionId });
+        }
         logEvent({
           clientIp: socket.remoteAddress,
           sessionId: auth.sessionId || null,
@@ -278,4 +285,4 @@ function createProxyHandler(options) {
   };
 }
 
-module.exports = { createProxyHandler, handleConnect, handleHttp, authorizeRequest, getSessionId, parseConnectTarget };
+module.exports = { createProxyHandler, handleConnect, handleHttp, authorizeRequest, getSessionIdFromRequest, parseConnectTarget };

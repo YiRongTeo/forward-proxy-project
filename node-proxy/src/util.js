@@ -31,8 +31,18 @@ function sendJson(res, statusCode, body) {
   res.end(payload);
 }
 
+function sendProxyAuthRequired(res, body) {
+  const payload = JSON.stringify(body);
+  res.writeHead(407, 'Proxy Authentication Required', {
+    'Proxy-Authenticate': 'Basic realm="forward-proxy"',
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(payload),
+  });
+  res.end(payload);
+}
+
 function logEvent(event) {
   console.log(JSON.stringify({ ts: new Date().toISOString(), ...event }));
 }
 
-module.exports = { stripHopByHop, sendJson, logEvent, HOP_BY_HOP };
+module.exports = { stripHopByHop, sendJson, sendProxyAuthRequired, logEvent, HOP_BY_HOP };

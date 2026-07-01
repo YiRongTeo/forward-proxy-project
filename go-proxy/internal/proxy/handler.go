@@ -31,6 +31,7 @@ type authResult struct {
 	sessionID     string
 	session       *session.Session
 	requestedHost string
+	authRequired  bool
 }
 
 func (c *Config) authorize(r *http.Request, remoteAddr, requestedHost string) authResult {
@@ -39,7 +40,7 @@ func (c *Config) authorize(r *http.Request, remoteAddr, requestedHost string) au
 	}
 	sessionID := proxyutil.SessionID(r, c.SessionHeader)
 	if sessionID == "" {
-		return authResult{ok: false, status: http.StatusBadRequest, errorCode: "missing_session_id", requestedHost: requestedHost}
+		return authResult{ok: false, status: http.StatusProxyAuthRequired, errorCode: "missing_session_id", requestedHost: requestedHost, authRequired: true}
 	}
 	sess, err := c.SessionStore.GetSession(context.Background(), sessionID)
 	if err != nil {
@@ -84,7 +85,11 @@ func (c *Config) HandleConnect(w http.ResponseWriter, r *http.Request) {
 
 	auth := c.authorize(r, r.RemoteAddr, host)
 	if !auth.ok {
-		proxyutil.WriteJSON(w, auth.status, map[string]interface{}{"error": auth.errorCode, "requestedHost": host, "sessionId": auth.sessionID})
+		if auth.authRequired {
+			proxyutil.WriteProxyAuthRequired(w, map[string]interface{}{"error": auth.errorCode, "requestedHost": host})
+		} else {
+			proxyutil.WriteJSON(w, auth.status, map[string]interface{}{"error": auth.errorCode, "requestedHost": host, "sessionId": auth.sessionID})
+		}
 		proxyutil.LogEvent(map[string]interface{}{"clientIp": r.RemoteAddr, "sessionId": auth.sessionID, "requestedHost": host, "allowed": false, "method": "CONNECT", "latencyMs": time.Since(start).Milliseconds(), "error": auth.errorCode})
 		return
 	}
@@ -148,7 +153,11 @@ func (c *Config) HandleHTTP(w http.ResponseWriter, r *http.Request) {
 	requestedHost := req.URL.Hostname()
 	auth := c.authorize(r, r.RemoteAddr, requestedHost)
 	if !auth.ok {
-		proxyutil.WriteJSON(w, auth.status, map[string]interface{}{"error": auth.errorCode, "sessionId": auth.sessionID})
+		if auth.authRequired {
+			proxyutil.WriteProxyAuthRequired(w, map[string]interface{}{"error": auth.errorCode})
+		} else {
+			proxyutil.WriteJSON(w, auth.status, map[string]interface{}{"error": auth.errorCode, "sessionId": auth.sessionID})
+		}
 		proxyutil.LogEvent(map[string]interface{}{"clientIp": r.RemoteAddr, "sessionId": auth.sessionID, "allowed": false, "method": r.Method, "latencyMs": time.Since(start).Milliseconds(), "error": auth.errorCode})
 		return
 	}

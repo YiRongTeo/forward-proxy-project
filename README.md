@@ -71,7 +71,8 @@ The proxy admin API only supports **read** operations: `GET /health` and `GET /s
 The extension:
 
 - Sets Chrome's forward proxy via `chrome.proxy.settings`
-- Injects `X-Session-ID` on all requests via `declarativeNetRequest`
+- Sends the session ID as **`X-Session-ID`** (via `declarativeNetRequest`) and as **proxy auth username** (via `webRequestAuthProvider`) — the reliable path for HTTPS/CONNECT through a forward proxy
+- After saving the session ID in the popup, reload the extension once if traffic still fails (`chrome://extensions` → Reload)
 
 ## Manual curl Tests
 
@@ -224,7 +225,8 @@ Compare Node (`8080`) vs Go (`8081`) using RPS, p99 latency, and 403 rates on de
 
 | Code | Meaning |
 |------|---------|
-| `400` | Missing `X-Session-ID` |
+| `400` | Invalid request URL |
+| `407` | Missing session ID (extension should respond with proxy credentials) |
 | `403` | IP not allowlisted or domain not allowed |
 | `404` | Session not found in Valkey |
 | `502` | Upstream unreachable |
