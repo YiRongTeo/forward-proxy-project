@@ -45,6 +45,10 @@ func (c *Config) authorize(r *http.Request, remoteAddr, requestedHost string) au
 	}
 	sess, err := c.SessionStore.GetSession(context.Background(), sessionID)
 	if err != nil {
+		proxyutil.LogError("session_lookup_failed", err, map[string]interface{}{
+			"sessionId":     sessionID,
+			"requestedHost": requestedHost,
+		})
 		return authResult{ok: false, status: http.StatusBadGateway, errorCode: "internal_error", sessionID: sessionID, requestedHost: requestedHost}
 	}
 	if sess == nil {

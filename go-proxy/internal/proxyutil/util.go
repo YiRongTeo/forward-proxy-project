@@ -61,6 +61,17 @@ func LogEvent(fields map[string]interface{}) {
 	log.Println(string(payload))
 }
 
+func LogError(event string, err error, fields map[string]interface{}) {
+	if fields == nil {
+		fields = map[string]interface{}{}
+	}
+	fields["event"] = event
+	if err != nil {
+		fields["err"] = err.Error()
+	}
+	LogEvent(fields)
+}
+
 func SessionID(r *http.Request, sessionHeader string) string {
 	candidates := []string{sessionHeader, "X-Session-ID", "x-session-id"}
 	for _, name := range candidates {

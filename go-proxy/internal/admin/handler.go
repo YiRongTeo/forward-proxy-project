@@ -30,7 +30,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		id = strings.TrimSuffix(id, "/")
 		sess, err := s.Store.GetSession(context.Background(), id)
 		if err != nil {
-			proxyutil.WriteJSON(w, http.StatusBadGateway, map[string]interface{}{"error": "internal_error"})
+			proxyutil.LogError("admin_get_session_failed", err, map[string]interface{}{
+				"sessionId": id,
+			})
+			proxyutil.WriteJSON(w, http.StatusBadGateway, map[string]interface{}{
+				"error":   "internal_error",
+				"message": err.Error(),
+			})
 			return
 		}
 		if sess == nil {

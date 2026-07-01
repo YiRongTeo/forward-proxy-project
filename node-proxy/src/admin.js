@@ -20,12 +20,22 @@ function createAdminServer(sessionStore, tlsOptions) {
     const sessionMatch = url.pathname.match(/^\/sessions\/([^/]+)$/);
     if (sessionMatch && req.method === 'GET') {
       const id = decodeURIComponent(sessionMatch[1]);
-      const session = await sessionStore.getSession(id);
-      if (!session) {
-        sendJson(res, 404, { error: 'session_not_found' });
-        return;
+      try {
+        const session = await sessionStore.getSession(id);
+        if (!session) {
+          sendJson(res, 404, { error: 'session_not_found' });
+          return;
+        }
+        sendJson(res, 200, { id, ...session });
+      } catch (err) {
+        console.error(JSON.stringify({
+          ts: new Date().toISOString(),
+          event: 'admin_get_session_failed',
+          sessionId: id,
+          err: err.message,
+        }));
+        sendJson(res, 502, { error: 'internal_error', message: err.message });
       }
-      sendJson(res, 200, { id, ...session });
       return;
     }
 

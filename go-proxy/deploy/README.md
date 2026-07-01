@@ -90,6 +90,44 @@ sudo journalctl -u go-proxy -f
 sudo systemctl restart go-proxy
 ```
 
+## Logs
+
+The Go binary logs to **stderr** (JSON lines). Under systemd, everything goes to **journald**:
+
+```bash
+# Follow live logs (proxy CONNECT events + admin errors)
+sudo journalctl -u go-proxy -f
+
+# Recent errors only
+sudo journalctl -u go-proxy -p err --since "1 hour ago"
+
+# Filter session lookup failures
+sudo journalctl -u go-proxy | grep session_lookup_failed
+sudo journalctl -u go-proxy | grep admin_get_session_failed
+```
+
+Log line types:
+
+| `event` / `msg` | Source | Meaning |
+|-----------------|--------|---------|
+| `go forward proxy listening` | startup | Proxy port ready |
+| `go admin API listening` | startup | Admin port ready |
+| `valkey connected` | startup | Valkey/Sentinel client created |
+| *(no event field)* | proxy | CONNECT/HTTP access log (`method`, `allowed`, `error`) |
+| `session_lookup_failed` | proxy | Valkey error during CONNECT/HTTP auth |
+| `admin_get_session_failed` | admin API | Valkey error on `GET /sessions/:id` |
+
+The directory `/var/log/go-proxy` is reserved for future file logging; **nothing is written there today**.
+
+When `GET /sessions/:id` returns `{"error":"internal_error"}`, the response now includes a `message` field with the underlying error. Check journald for the matching `admin_get_session_failed` line.
+
+Quick Valkey connectivity check:
+
+```bash
+curl -s http://127.0.0.1:9001/health | jq .
+curl -s http://127.0.0.1:9001/sessions/session1234 | jq .
+```
+
 ## Firewalld (optional)
 
 ```bash

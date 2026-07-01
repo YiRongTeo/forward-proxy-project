@@ -278,6 +278,24 @@ Compare Node (`8080`) vs Go (`8081`) using RPS, p99 latency, and 403 rates on de
 | `404` | Session not found in Valkey |
 | `502` | Upstream unreachable |
 | `504` | Upstream timeout |
+| `502` with `internal_error` | Valkey/Sentinel unreachable or session data invalid — check admin `message` field and service logs |
+
+## Logs
+
+Both proxies write JSON lines to **stdout/stderr**.
+
+| Deployment | View logs |
+|------------|-----------|
+| RHEL systemd | `sudo journalctl -u go-proxy -f` |
+| Docker Compose | `docker compose logs -f go-proxy` |
+| Local run | Terminal output |
+
+Admin session lookup errors log as `admin_get_session_failed` (Go/Node). Proxy auth lookups log as `session_lookup_failed` (Go).
+
+```bash
+curl -s http://127.0.0.1:9001/health
+curl -s http://127.0.0.1:9001/sessions/session1234
+```
 
 ## Project Layout
 
