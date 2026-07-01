@@ -27,10 +27,12 @@
     <p class="status" id="status"></p>
     <p class="meta" id="meta"></p>
     <div class="hint">
-      DevTools shows headers for the destination site, not the proxy tunnel.
-      The session is sent on the proxy <strong>CONNECT</strong> request as
-      <code>x-session-id</code> and/or <code>Proxy-Authorization</code>.
-      Filter Network by method CONNECT to inspect it.
+      HTTPS sites use a proxy <strong>CONNECT</strong> tunnel. Chrome cannot inject
+      headers on that request via declarativeNetRequest; the extension answers the
+      proxy <strong>407</strong> challenge with your session ID as
+      <code>Proxy-Authorization</code>. Plain HTTP requests still get
+      <code>x-session-id</code>. After saving, reload the extension if CONNECT still
+      fails.
     </div>
     <script src="rules.js"></script>
     <script src="popup.js"></script>

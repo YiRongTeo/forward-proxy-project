@@ -18,69 +18,50 @@ const ALL_RESOURCE_TYPES = [
   'other',
 ];
 
+// Legacy CONNECT rule IDs from earlier versions (DNR cannot modify proxy CONNECT).
+const LEGACY_CONNECT_RULE_IDS = [1, 101];
+
 const DYNAMIC_RULE_IDS = {
-  connect: 1,
   http: 2,
 };
 
 const SESSION_RULE_IDS = {
-  connect: 101,
   http: 102,
 };
 
-function buildProxyAuthorization(sessionId) {
-  return `Basic ${btoa(`${sessionId}:session`)}`;
-}
+function buildHttpHeaderRule(sessionId, id) {
+  if (!sessionId) return null;
 
-function buildRequestHeaders(sessionId) {
-  return [
-    { header: SESSION_HEADER, operation: 'set', value: sessionId },
-    {
-      header: 'proxy-authorization',
-      operation: 'set',
-      value: buildProxyAuthorization(sessionId),
+  return {
+    id,
+    priority: 1,
+    action: {
+      type: 'modifyHeaders',
+      requestHeaders: [
+        { header: SESSION_HEADER, operation: 'set', value: sessionId },
+      ],
     },
-  ];
-}
-
-function buildHeaderRules(sessionId, ids) {
-  if (!sessionId) return [];
-
-  const headerAction = {
-    type: 'modifyHeaders',
-    requestHeaders: buildRequestHeaders(sessionId),
+    condition: {
+      urlFilter: '|http*',
+      resourceTypes: ALL_RESOURCE_TYPES,
+    },
   };
-
-  return [
-    {
-      id: ids.connect,
-      priority: 2,
-      action: headerAction,
-      condition: {
-        requestMethods: ['connect'],
-        resourceTypes: ALL_RESOURCE_TYPES,
-      },
-    },
-    {
-      id: ids.http,
-      priority: 1,
-      action: headerAction,
-      condition: {
-        urlFilter: '|http*',
-        resourceTypes: ALL_RESOURCE_TYPES,
-      },
-    },
-  ];
 }
 
 function buildDynamicHeaderRules(sessionId) {
-  return buildHeaderRules(sessionId, DYNAMIC_RULE_IDS);
+  const rule = buildHttpHeaderRule(sessionId, DYNAMIC_RULE_IDS.http);
+  return rule ? [rule] : [];
 }
 
 function buildSessionHeaderRules(sessionId) {
-  return buildHeaderRules(sessionId, SESSION_RULE_IDS);
+  const rule = buildHttpHeaderRule(sessionId, SESSION_RULE_IDS.http);
+  return rule ? [rule] : [];
 }
 
 function allRuleIds(ids) {
-  return [ids.connect, ids.http];
+  return Object.values(ids);
+}
+
+function allRuleIdsToRemove(ids) {
+  return [...LEGACY_CONNECT_RULE_IDS, ...allRuleIds(ids)];
 }

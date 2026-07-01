@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Forward Proxy Session",
-  "version": "1.2.1",
-  "description": "Routes Chrome through the forward proxy and sends the session via x-session-id and Proxy-Authorization.",
+  "version": "1.2.2",
+  "description": "Routes Chrome through the forward proxy with session auth on CONNECT via webRequest.onAuthRequired.",
   "permissions": [
     "proxy",
     "storage",

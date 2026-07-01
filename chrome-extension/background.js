@@ -2,6 +2,13 @@ importScripts('rules.js');
 
 const DEFAULT_PROXY = { host: 'localhost', port: 8080, scheme: 'http' };
 
+const cachedConfig = {
+  sessionId: '',
+  proxyHost: DEFAULT_PROXY.host,
+  proxyPort: DEFAULT_PROXY.port,
+  proxyScheme: DEFAULT_PROXY.scheme,
+};
+
 function getConfig() {
   return new Promise((resolve) => {
     chrome.storage.local.get(
@@ -11,9 +18,81 @@ function getConfig() {
         proxyPort: DEFAULT_PROXY.port,
         proxyScheme: DEFAULT_PROXY.scheme,
       },
-      resolve
+      (cfg) => {
+        syncCachedConfig(cfg);
+        resolve(cfg);
+      }
     );
   });
+}
+
+function syncCachedConfig(cfg) {
+  cachedConfig.sessionId = cfg.sessionId || '';
+  cachedConfig.proxyHost = cfg.proxyHost || DEFAULT_PROXY.host;
+  cachedConfig.proxyPort = parseInt(cfg.proxyPort, 10) || DEFAULT_PROXY.port;
+  cachedConfig.proxyScheme = cfg.proxyScheme || DEFAULT_PROXY.scheme;
+}
+
+function normalizeHost(host) {
+  if (!host) return '';
+  const value = host.toLowerCase();
+  if (value === 'localhost' || value === '127.0.0.1' || value === '::1') {
+    return 'loopback';
+  }
+  return value;
+}
+
+function isOurProxyChallenge(details) {
+  if (details.isProxy) return true;
+
+  const challenger = details.challenger || {};
+  const challengerPort = parseInt(challenger.port, 10);
+  const expectedPort = cachedConfig.proxyPort || DEFAULT_PROXY.port;
+  if (challengerPort !== expectedPort) return false;
+
+  return normalizeHost(challenger.host) === normalizeHost(cachedConfig.proxyHost);
+}
+
+function proxyAuthCredentials(sessionId) {
+  return {
+    authCredentials: {
+      username: sessionId,
+      password: 'session',
+    },
+  };
+}
+
+function respondToProxyAuth(details, callback) {
+  const finish = (sessionId) => {
+    if (sessionId && isOurProxyChallenge(details)) {
+      callback(proxyAuthCredentials(sessionId));
+      return;
+    }
+    callback({});
+  };
+
+  if (cachedConfig.sessionId) {
+    finish(cachedConfig.sessionId);
+    return;
+  }
+
+  chrome.storage.local.get({ sessionId: '' }, ({ sessionId }) => {
+    syncCachedConfig({ ...cachedConfig, sessionId });
+    finish(sessionId || '');
+  });
+}
+
+function registerProxyAuthHandler() {
+  if (registerProxyAuthHandler.registered) return;
+  registerProxyAuthHandler.registered = true;
+
+  chrome.webRequest.onAuthRequired.addListener(
+    (details, callback) => {
+      respondToProxyAuth(details, callback);
+    },
+    { urls: ['<all_urls>'] },
+    ['asyncBlocking']
+  );
 }
 
 async function migrateLegacySyncStorage() {
@@ -37,10 +116,11 @@ async function migrateLegacySyncStorage() {
   if (Object.keys(patch).length === 0) return;
 
   await new Promise((resolve) => chrome.storage.local.set(patch, resolve));
+  syncCachedConfig({ ...local, ...patch });
 }
 
 async function applyProxySettings() {
-  const { proxyHost, proxyPort, proxyScheme } = await getConfig();
+  const { proxyHost, proxyPort, proxyScheme } = cachedConfig;
   const config = {
     mode: 'fixed_servers',
     rules: {
@@ -68,7 +148,7 @@ async function applyDynamicHeaderRules(sessionId) {
   await new Promise((resolve, reject) => {
     chrome.declarativeNetRequest.updateDynamicRules(
       {
-        removeRuleIds: allRuleIds(DYNAMIC_RULE_IDS),
+        removeRuleIds: allRuleIdsToRemove(DYNAMIC_RULE_IDS),
         addRules: buildDynamicHeaderRules(sessionId),
       },
       () => {
@@ -80,46 +160,6 @@ async function applyDynamicHeaderRules(sessionId) {
       }
     );
   });
-}
-
-function isConfiguredProxyChallenge(details, proxyHost, proxyPort) {
-  if (details.isProxy) return true;
-  const challenger = details.challenger || {};
-  const challengerPort = parseInt(challenger.port, 10);
-  return challenger.host === proxyHost && challengerPort === proxyPort;
-}
-
-function registerProxyAuthHandler() {
-  if (registerProxyAuthHandler.registered) return;
-  registerProxyAuthHandler.registered = true;
-
-  chrome.webRequest.onAuthRequired.addListener(
-    (details, callback) => {
-      getConfig()
-        .then(({ sessionId, proxyHost, proxyPort }) => {
-          if (!sessionId) {
-            callback({});
-            return;
-          }
-
-          const port = parseInt(proxyPort, 10) || 8080;
-          if (!isConfiguredProxyChallenge(details, proxyHost, port)) {
-            callback({});
-            return;
-          }
-
-          callback({
-            authCredentials: {
-              username: sessionId,
-              password: 'session',
-            },
-          });
-        })
-        .catch(() => callback({}));
-    },
-    { urls: ['<all_urls>'] },
-    ['asyncBlocking']
-  );
 }
 
 function registerKeepAlive() {
@@ -140,6 +180,7 @@ async function getRuleStatus() {
   return {
     dynamicRuleCount: dynamicRules.length,
     sessionRuleCount: sessionRules.length,
+    connectAuth: cachedConfig.sessionId ? 'webRequest.onAuthRequired' : 'none',
   };
 }
 
@@ -148,15 +189,16 @@ async function refresh() {
   const { sessionId } = await getConfig();
   await applyProxySettings();
   await applyDynamicHeaderRules(sessionId);
-  registerProxyAuthHandler();
   const status = await getRuleStatus();
   console.log('[forward-proxy-session] refreshed', {
     sessionId: sessionId ? `${sessionId.slice(0, 4)}...` : '(empty)',
-    sendsProxyAuthorization: Boolean(sessionId),
+    connectAuth: status.connectAuth,
     ...status,
   });
   return status;
 }
+
+registerProxyAuthHandler();
 
 chrome.runtime.onInstalled.addListener(() => {
   registerKeepAlive();
@@ -170,6 +212,18 @@ chrome.runtime.onStartup.addListener(() => {
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
+  if (changes.sessionId) {
+    cachedConfig.sessionId = changes.sessionId.newValue || '';
+  }
+  if (changes.proxyHost) {
+    cachedConfig.proxyHost = changes.proxyHost.newValue || DEFAULT_PROXY.host;
+  }
+  if (changes.proxyPort) {
+    cachedConfig.proxyPort = parseInt(changes.proxyPort.newValue, 10) || DEFAULT_PROXY.port;
+  }
+  if (changes.proxyScheme) {
+    cachedConfig.proxyScheme = changes.proxyScheme.newValue || DEFAULT_PROXY.scheme;
+  }
   if (changes.proxyHost || changes.proxyPort || changes.proxyScheme || changes.sessionId) {
     refresh().catch(console.error);
   }
@@ -185,9 +239,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message?.type === 'applySessionRules') {
     const sessionId = message.sessionId || '';
+    cachedConfig.sessionId = sessionId;
     chrome.declarativeNetRequest.updateSessionRules(
       {
-        removeRuleIds: allRuleIds(SESSION_RULE_IDS),
+        removeRuleIds: allRuleIdsToRemove(SESSION_RULE_IDS),
         addRules: buildSessionHeaderRules(sessionId),
       },
       () => {

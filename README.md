@@ -71,10 +71,12 @@ The proxy admin API only supports **read** operations: `GET /health` and `GET /s
 The extension:
 
 - Sets Chrome's forward proxy via `chrome.proxy.settings`
-- Sends the session ID on the **proxy CONNECT/HTTP request** as `x-session-id` (via declarativeNetRequest, including a CONNECT-specific rule) and as **proxy auth username** (via `webRequestAuthProvider`)
-- Applies **session rules on Save** (user gesture) for reliable CONNECT header injection
+- Sends the session ID on **plain HTTP proxy requests** as `x-session-id` (declarativeNetRequest)
+- Sends the session ID on **HTTPS CONNECT** as `Proxy-Authorization` (username = session ID) via `webRequest.onAuthRequired` when the proxy returns **407** — declarativeNetRequest cannot modify proxy CONNECT headers in Chrome
 
-**DevTools note:** When viewing `https://google.com` in the Network tab, you will **not** see `x-session-id` on the page request — that request is tunneled after CONNECT. Filter by method **CONNECT** to inspect headers sent to the proxy.
+After saving a session ID in the popup, reload the extension once if CONNECT still logs `missing_session_id`.
+
+**DevTools note:** HTTPS page requests are tunneled after CONNECT. The session is sent on the CONNECT request to the proxy as `Proxy-Authorization`, not on the visible page request. Filter Network by method **CONNECT** to inspect proxy auth headers.
 
 ## Manual curl Tests
 
@@ -95,12 +97,11 @@ curl -x http://127.0.0.1:8080 \
 # HTTP/1.1 403 Forbidden
 ```
 
-HTTPS CONNECT tunnel:
+HTTPS CONNECT tunnel (proxy auth username = session ID):
 
 ```bash
 curl -x http://127.0.0.1:8080 \
-  -H 'X-Session-ID: session1234' \
-  --connect-to ::google.com:443:127.0.0.1:8080 \
+  -U 'session1234:session' \
   https://google.com/ -I
 ```
 

@@ -11,7 +11,8 @@ function renderStatus(response) {
   const { config, status } = response;
   metaEl.textContent = [
     `Proxy: ${config.proxyScheme}://${config.proxyHost}:${config.proxyPort}`,
-    `Rules: ${status.dynamicRuleCount} dynamic, ${status.sessionRuleCount} session`,
+    `HTTP rules: ${status.dynamicRuleCount} dynamic, ${status.sessionRuleCount} session`,
+    `CONNECT: ${status.connectAuth || 'webRequest.onAuthRequired'}`,
   ].join(' | ');
 }
 
@@ -40,7 +41,7 @@ document.getElementById('save').addEventListener('click', () => {
         }
 
         statusEl.textContent = sessionId
-          ? 'Saved. Session header rules applied.'
+          ? 'Saved. HTTP header rules and CONNECT proxy auth applied.'
           : 'Cleared.';
         renderStatus(response);
         setTimeout(() => {
