@@ -49,6 +49,12 @@ func WriteProxyAuthRequired(w http.ResponseWriter, body interface{}) {
 	_ = json.NewEncoder(w).Encode(body)
 }
 
+func WriteConnectProxyAuthRequired(w http.ResponseWriter) {
+	w.Header().Set("Proxy-Authenticate", `Basic realm="forward-proxy"`)
+	w.Header().Set("Content-Length", "0")
+	w.WriteHeader(http.StatusProxyAuthRequired)
+}
+
 func LogEvent(fields map[string]interface{}) {
 	fields["ts"] = time.Now().UTC().Format(time.RFC3339Nano)
 	payload, _ := json.Marshal(fields)

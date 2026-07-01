@@ -28,12 +28,27 @@ const SESSION_RULE_IDS = {
   http: 102,
 };
 
+function buildProxyAuthorization(sessionId) {
+  return `Basic ${btoa(`${sessionId}:session`)}`;
+}
+
+function buildRequestHeaders(sessionId) {
+  return [
+    { header: SESSION_HEADER, operation: 'set', value: sessionId },
+    {
+      header: 'proxy-authorization',
+      operation: 'set',
+      value: buildProxyAuthorization(sessionId),
+    },
+  ];
+}
+
 function buildHeaderRules(sessionId, ids) {
   if (!sessionId) return [];
 
   const headerAction = {
     type: 'modifyHeaders',
-    requestHeaders: [{ header: SESSION_HEADER, operation: 'set', value: sessionId }],
+    requestHeaders: buildRequestHeaders(sessionId),
   };
 
   return [

@@ -41,8 +41,26 @@ function sendProxyAuthRequired(res, body) {
   res.end(payload);
 }
 
+function sendConnectProxyAuthRequired(res) {
+  const raw =
+    'HTTP/1.1 407 Proxy Authentication Required\r\n' +
+    'Proxy-Authenticate: Basic realm="forward-proxy"\r\n' +
+    'Content-Length: 0\r\n\r\n';
+
+  if (typeof res.writeRaw === 'function') {
+    res.writeRaw(raw);
+    return;
+  }
+
+  res.writeHead(407, 'Proxy Authentication Required', {
+    'Proxy-Authenticate': 'Basic realm="forward-proxy"',
+    'Content-Length': '0',
+  });
+  res.end();
+}
+
 function logEvent(event) {
   console.log(JSON.stringify({ ts: new Date().toISOString(), ...event }));
 }
 
-module.exports = { stripHopByHop, sendJson, sendProxyAuthRequired, logEvent, HOP_BY_HOP };
+module.exports = { stripHopByHop, sendJson, sendProxyAuthRequired, sendConnectProxyAuthRequired, logEvent, HOP_BY_HOP };

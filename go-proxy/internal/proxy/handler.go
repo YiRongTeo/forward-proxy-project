@@ -86,11 +86,21 @@ func (c *Config) HandleConnect(w http.ResponseWriter, r *http.Request) {
 	auth := c.authorize(r, r.RemoteAddr, host)
 	if !auth.ok {
 		if auth.authRequired {
-			proxyutil.WriteProxyAuthRequired(w, map[string]interface{}{"error": auth.errorCode, "requestedHost": host})
+			proxyutil.WriteConnectProxyAuthRequired(w)
 		} else {
 			proxyutil.WriteJSON(w, auth.status, map[string]interface{}{"error": auth.errorCode, "requestedHost": host, "sessionId": auth.sessionID})
 		}
-		proxyutil.LogEvent(map[string]interface{}{"clientIp": r.RemoteAddr, "sessionId": auth.sessionID, "requestedHost": host, "allowed": false, "method": "CONNECT", "latencyMs": time.Since(start).Milliseconds(), "error": auth.errorCode})
+		proxyutil.LogEvent(map[string]interface{}{
+			"clientIp": r.RemoteAddr,
+			"sessionId": auth.sessionID,
+			"requestedHost": host,
+			"allowed": false,
+			"method": "CONNECT",
+			"latencyMs": time.Since(start).Milliseconds(),
+			"error": auth.errorCode,
+			"hasSessionHeader": r.Header.Get("X-Session-ID") != "" || r.Header.Get("x-session-id") != "",
+			"hasProxyAuth": r.Header.Get("Proxy-Authorization") != "",
+		})
 		return
 	}
 	if !domain.HostAllowed(host, auth.session.Domain) {

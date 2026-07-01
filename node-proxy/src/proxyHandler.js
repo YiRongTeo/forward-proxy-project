@@ -5,7 +5,7 @@ const net = require('net');
 const { URL } = require('url');
 const { hostAllowed } = require('./domainMatch');
 const { getSessionId } = require('./sessionAuth');
-const { stripHopByHop, sendJson, sendProxyAuthRequired, logEvent } = require('./util');
+const { stripHopByHop, sendJson, sendProxyAuthRequired, sendConnectProxyAuthRequired, logEvent } = require('./util');
 
 function parseConnectTarget(target) {
   const trimmed = target.trim();
@@ -79,7 +79,7 @@ function handleConnect(req, res, socket, head, options) {
     .then((auth) => {
       if (!auth.ok) {
         if (auth.authRequired) {
-          sendProxyAuthRequired(res, { error: auth.error, requestedHost: host });
+          sendConnectProxyAuthRequired(res);
         } else {
           const body = {
             error: auth.error,
@@ -96,6 +96,8 @@ function handleConnect(req, res, socket, head, options) {
           method: 'CONNECT',
           latencyMs: Date.now() - start,
           error: auth.error,
+          hasSessionHeader: Boolean(req.headers['x-session-id'] || req.headers['X-Session-ID']),
+          hasProxyAuth: Boolean(req.headers['proxy-authorization']),
         });
         return;
       }
