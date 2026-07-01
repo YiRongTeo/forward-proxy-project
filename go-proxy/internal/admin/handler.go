@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/yirongteo/forward-proxy-project/go-proxy/internal/proxyutil"
-	"github.com/yirongteo/forward-proxy-project/go-proxy/internal/session"
+	"go-proxy/internal/proxyutil"
+	"go-proxy/internal/session"
 )
 
 type Server struct {

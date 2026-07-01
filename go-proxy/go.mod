@@ -1,4 +1,4 @@
-module github.com/yirongteo/forward-proxy-project/go-proxy
+module go-proxy
 
 go 1.22
 

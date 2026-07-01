@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yirongteo/forward-proxy-project/go-proxy/internal/admin"
-	"github.com/yirongteo/forward-proxy-project/go-proxy/internal/allowlist"
-	"github.com/yirongteo/forward-proxy-project/go-proxy/internal/proxy"
-	"github.com/yirongteo/forward-proxy-project/go-proxy/internal/session"
+	"go-proxy/internal/admin"
+	"go-proxy/internal/allowlist"
+	"go-proxy/internal/proxy"
+	"go-proxy/internal/session"
 )
 
 func env(key, fallback string) string {

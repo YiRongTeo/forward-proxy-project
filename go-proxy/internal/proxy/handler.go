@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yirongteo/forward-proxy-project/go-proxy/internal/allowlist"
-	"github.com/yirongteo/forward-proxy-project/go-proxy/internal/domain"
-	"github.com/yirongteo/forward-proxy-project/go-proxy/internal/proxyutil"
-	"github.com/yirongteo/forward-proxy-project/go-proxy/internal/session"
+	"go-proxy/internal/allowlist"
+	"go-proxy/internal/domain"
+	"go-proxy/internal/proxyutil"
+	"go-proxy/internal/session"
 )
 
 type Config struct {
