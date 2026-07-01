@@ -168,13 +168,13 @@ function registerDiagnosticListeners() {
 
   chrome.webRequest.onHeadersReceived.addListener(
     (details) => {
-      if (details.statusCode === 407) {
-        pushEvent('407 response', {
-          url: details.url,
-          method: details.method,
-          isProxy: details.isProxy,
-        });
-      }
+      if (details.method !== 'CONNECT') return;
+      if (details.statusCode === 200) return;
+      pushEvent('connectFailed', {
+        url: details.url,
+        status: details.statusCode,
+        isProxy: details.isProxy,
+      });
     },
     { urls: ['<all_urls>'] },
     ['responseHeaders']
@@ -182,9 +182,13 @@ function registerDiagnosticListeners() {
 
   chrome.webRequest.onErrorOccurred.addListener(
     (details) => {
-      if (details.error && /PROXY|407|AUTH/i.test(details.error)) {
-        pushEvent('proxyError', { url: details.url, error: details.error });
-      }
+      if (!details.error) return;
+      if (!/PROXY|TUNNEL|407|AUTH|CONNECTION_FAILED/i.test(details.error)) return;
+      pushEvent('networkError', {
+        url: details.url,
+        method: details.method,
+        error: details.error,
+      });
     },
     { urls: ['<all_urls>'] }
   );
