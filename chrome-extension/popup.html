@@ -36,6 +36,7 @@
     <label for="sessionId">Session ID</label>
     <input id="sessionId" type="text" placeholder="session1234" />
     <button id="save">Save &amp; Apply</button>
+    <button id="resetProxy" type="button">Reset proxy connection</button>
     <p class="status" id="status"></p>
     <p class="meta" id="meta"></p>
     <pre class="events" id="events"></pre>
@@ -48,8 +49,8 @@
       show <code>onAuthRequired</code> and <code>authSupplied</code>.
       <code>Unsafe attempt to load URL … chrome-error://chromewebdata/</code>
       is a side effect of <code>ERR_TUNNEL_CONNECTION_FAILED</code>, not the
-      root cause — check service worker for <code>connectFailed</code> /
-      <code>networkError</code>, then proxy logs on the server.
+      root cause — check service worker for <code>networkError</code> hint.
+      No 407 usually means TCP/scheme/IP allowlist — not session auth yet.
     </div>
     <script src="rules.js"></script>
     <script src="popup.js"></script>

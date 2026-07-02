@@ -1,5 +1,8 @@
 const SESSION_HEADER = 'x-session-id';
 
+const FORWARD_PROXY_PORTS = { go: 8081, node: 8080 };
+const ADMIN_API_PORTS = [9001, 3001];
+
 const ALL_RESOURCE_TYPES = [
   'main_frame',
   'sub_frame',

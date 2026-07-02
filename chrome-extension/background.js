@@ -108,10 +108,11 @@ function tunnelFailureHint(summary) {
   if (!summary.hadOnAuth) {
     return [
       'Chrome never received proxy 407',
-      'check extension scheme http vs https matches proxy TLS',
-      'check host/port/firewall',
-      'if Chrome is on another machine add its IP to allowedClientIps',
-      'test: curl -v -x http://HOST:PORT https://example.com -I without -U should show 407',
+      '1 run: curl -v -x http://HOST:8081 https://example.com -o /dev/null (no -U)',
+      '2 connection refused = wrong host/port/firewall or ERR_NO_SUPPORTED_PROXIES',
+      '3 HTTP 403 (not 407) = client IP blocked in allowedClientIps on server',
+      '4 HTTP 407 from curl but not Chrome = click Reset proxy in popup and restart Chrome',
+      '5 scheme must be http unless go-proxy TLS is enabled',
     ].join(' | ');
   }
   if (summary.hadAuthSkipped) {
@@ -286,6 +287,18 @@ async function readActiveProxySettings() {
   });
 }
 
+async function clearProxySettings() {
+  await new Promise((resolve, reject) => {
+    chrome.proxy.settings.clear({ scope: 'regular' }, () => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
 async function applyProxySettings() {
   let parsed;
   try {
@@ -316,6 +329,7 @@ async function applyProxySettings() {
     },
   };
 
+  await clearProxySettings();
   await new Promise((resolve, reject) => {
     chrome.proxy.settings.set({ value: config, scope: 'regular' }, () => {
       if (chrome.runtime.lastError) {
@@ -338,6 +352,10 @@ async function applyProxySettings() {
     active: activeLabel,
     matches: configured === activeLabel,
     control: details?.levelOfControl || 'unknown',
+    note:
+      proxyScheme === 'https'
+        ? 'using https proxy scheme — server must have TLS on this port'
+        : 'forward proxy port (not admin API)',
   });
 }
 
@@ -483,6 +501,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           .catch((err) => sendResponse({ ok: false, error: err.message }));
       }
     );
+    return true;
+  }
+
+  if (message?.type === 'resetProxy') {
+    clearProxySettings()
+      .then(() => refresh())
+      .then((status) => sendResponse({ ok: true, status }))
+      .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;
   }
 
