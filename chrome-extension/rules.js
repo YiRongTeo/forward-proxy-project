@@ -120,5 +120,11 @@ function parseProxySettings(rawHost, rawPort, rawScheme) {
     throw new Error('Proxy port must be between 1 and 65535');
   }
 
+  if (ADMIN_API_PORTS.includes(port)) {
+    throw new Error(
+      `Port ${port} is the read-only admin API. Use forward proxy port ${FORWARD_PROXY_PORTS.go} (Go) or ${FORWARD_PROXY_PORTS.node} (Node) for browsing.`
+    );
+  }
+
   return { proxyHost: host, proxyPort: port, proxyScheme: scheme };
 }

@@ -108,11 +108,10 @@ function tunnelFailureHint(summary) {
   if (!summary.hadOnAuth) {
     return [
       'Chrome never received proxy 407',
-      '1 run: curl -v -x http://HOST:8081 https://example.com -o /dev/null (no -U)',
-      '2 connection refused = wrong host/port/firewall or ERR_NO_SUPPORTED_PROXIES',
-      '3 HTTP 403 (not 407) = client IP blocked in allowedClientIps on server',
-      '4 HTTP 407 from curl but not Chrome = click Reset proxy in popup and restart Chrome',
-      '5 scheme must be http unless go-proxy TLS is enabled',
+      'HTTPS proxy: cert must match FQDN and be trusted by Chrome (curl --proxy-insecure does not count)',
+      'port must be 8081 forward proxy not 9001 admin',
+      'test: curl -v -x https://HOST:8081 https://example.com -o /dev/null (no -U, no --proxy-insecure)',
+      '403 from curl = allowedClientIps not 407',
     ].join(' | ');
   }
   if (summary.hadAuthSkipped) {
