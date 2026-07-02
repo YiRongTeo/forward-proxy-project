@@ -1,0 +1,36 @@
+services:
+  valkey:
+    image: valkey/valkey:8-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  node-proxy:
+    build:
+      context: ./node-proxy
+    ports:
+      - "8080:8080"
+      - "3001:3001"
+    volumes:
+      - ./config/node-proxy.json:/config/config.json:ro
+      - ./certs:/certs:ro
+    depends_on:
+      valkey:
+        condition: service_healthy
+
+  go-proxy:
+    build:
+      context: ./go-proxy
+    ports:
+      - "8081:8081"
+      - "9001:9001"
+    volumes:
+      - ./config/go-proxy.json:/config/config.json:ro
+      - ./certs:/certs:ro
+    depends_on:
+      valkey:
+        condition: service_healthy

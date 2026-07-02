@@ -1,0 +1,41 @@
+[Unit]
+Description=Forward Proxy (Go)
+Documentation=file:///usr/share/doc/go-proxy/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=go-proxy
+Group=go-proxy
+
+EnvironmentFile=-/etc/go-proxy/go-proxy.env
+ExecStart=/usr/local/bin/go-proxy -config /etc/go-proxy/config.json
+
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+
+# Go log output goes to stderr and is captured by journald.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=go-proxy
+
+LimitNOFILE=65536
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectKernelLogs=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+ReadWritePaths=/var/log/go-proxy
+ReadOnlyPaths=/etc/go-proxy
+
+[Install]
+WantedBy=multi-user.target

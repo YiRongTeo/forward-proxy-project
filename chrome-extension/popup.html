@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Session ID</title>
+    <style>
+      body { font-family: system-ui, sans-serif; min-width: 320px; padding: 12px; }
+      label { display: block; font-size: 12px; margin-bottom: 4px; }
+      input { width: 100%; box-sizing: border-box; padding: 6px; margin-bottom: 10px; }
+      button { width: 100%; padding: 8px; cursor: pointer; margin-bottom: 8px; }
+      .status { font-size: 12px; color: #0a0; min-height: 16px; margin-bottom: 8px; }
+      .hint {
+        font-size: 11px;
+        color: #555;
+        line-height: 1.4;
+        background: #f5f5f5;
+        padding: 8px;
+        border-radius: 4px;
+      }
+      .meta { font-size: 11px; color: #333; margin-top: 8px; }
+      .events {
+        font-size: 10px;
+        color: #444;
+        margin-top: 8px;
+        max-height: 120px;
+        overflow-y: auto;
+        background: #fafafa;
+        border: 1px solid #ddd;
+        padding: 6px;
+        border-radius: 4px;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <label for="sessionId">Session ID</label>
+    <input id="sessionId" type="text" placeholder="session1234" />
+    <button id="save">Save &amp; Apply</button>
+    <button id="resetProxy" type="button">Reset proxy connection</button>
+    <p class="status" id="status"></p>
+    <p class="meta" id="meta"></p>
+    <pre class="events" id="events"></pre>
+    <div class="hint">
+      HTTPS uses CONNECT. Chrome cannot inject headers on CONNECT — the extension
+      answers the proxy <strong>407</strong> with your session ID (same as
+      <code>curl -U 'session1234:session'</code>). Open <strong>Options</strong>
+      and set port <strong>8081</strong> for Go (8080 for Node). Reload the
+      extension after changes. After browsing, the service worker console should
+      show <code>onAuthRequired</code> and <code>authSupplied</code>.
+      <code>Unsafe attempt to load URL … chrome-error://chromewebdata/</code>
+      is a side effect of <code>ERR_TUNNEL_CONNECTION_FAILED</code>, not the
+      root cause — check service worker for <code>networkError</code> hint.
+      No 407 usually means TCP/scheme/IP allowlist — not session auth yet.
+    </div>
+    <script src="rules.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>
