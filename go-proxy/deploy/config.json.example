@@ -20,6 +20,7 @@
   "trustProxyHeaders": false,
   "sessionHeader": "X-Session-ID",
   "defaultAllowedDomains": [],
+  "publicDomains": [],
   "tls": {
     "certFile": "",
     "keyFile": ""

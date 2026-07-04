@@ -19,6 +19,7 @@ const DEFAULTS = {
     keyFile: '',
   },
   defaultAllowedDomains: [],
+  publicDomains: [],
 };
 
 function parseValkeyTls(parsed) {
@@ -99,6 +100,10 @@ function loadConfig(configPath) {
     ? parsed.defaultAllowedDomains.map(String)
     : DEFAULTS.defaultAllowedDomains;
 
+  const publicDomains = Array.isArray(parsed.publicDomains)
+    ? parsed.publicDomains.map(String)
+    : DEFAULTS.publicDomains;
+
   return {
     configPath: filePath,
     valkey: parseValkeyConfig(parsed),
@@ -109,6 +114,7 @@ function loadConfig(configPath) {
     trustProxyHeaders: Boolean(parsed.trustProxyHeaders),
     sessionHeader: parsed.sessionHeader || DEFAULTS.sessionHeader,
     defaultAllowedDomains,
+    publicDomains,
     tls: {
       certFile: parsed.tls?.certFile || '',
       keyFile: parsed.tls?.keyFile || '',

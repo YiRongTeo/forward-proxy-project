@@ -63,6 +63,7 @@ func main() {
 		SessionStore:          store,
 		SessionHeader:         cfg.SessionHeader,
 		DefaultAllowedDomains: cfg.DefaultAllowedDomains,
+		PublicDomains:         cfg.PublicDomains,
 		Timeout:               time.Duration(cfg.ProxyTimeoutMs) * time.Millisecond,
 	}
 

@@ -21,10 +21,15 @@ function hostAllowed(requestedHost, sessionDomain) {
   return host === domain || host.endsWith('.' + domain);
 }
 
+function isPublicHost(requestedHost, publicDomains = []) {
+  if (!Array.isArray(publicDomains)) return false;
+  return publicDomains.some((domain) => hostAllowed(requestedHost, domain));
+}
+
 function requestHostAllowed(requestedHost, sessionDomain, defaultAllowedDomains = []) {
   if (hostAllowed(requestedHost, sessionDomain)) return true;
   if (!Array.isArray(defaultAllowedDomains)) return false;
   return defaultAllowedDomains.some((domain) => hostAllowed(requestedHost, domain));
 }
 
-module.exports = { hostAllowed, requestHostAllowed, normalizeHost };
+module.exports = { hostAllowed, isPublicHost, requestHostAllowed, normalizeHost };

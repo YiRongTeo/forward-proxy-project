@@ -113,7 +113,7 @@ Log line types:
 | `go forward proxy listening` | startup | Proxy port ready |
 | `go admin API listening` | startup | Admin port ready |
 | `valkey connected` | startup | Valkey/Sentinel client created |
-| *(no event field)* | proxy | CONNECT/HTTP access log (`method`, `allowed`, `error`) |
+| *(no event field)* | proxy | CONNECT/HTTP access log (`method`, `allowed`, `authMode`, `error`) |
 | `session_lookup_failed` | proxy | Valkey error during CONNECT/HTTP auth |
 | `admin_get_session_failed` | admin API | Valkey error on `GET /sessions/:id` |
 
@@ -196,7 +196,8 @@ The **Go forward proxy (8081) never returns 405** for CONNECT. A 405 means the r
 
 1. **Proxy scheme mismatch** — if `/etc/go-proxy/config.json` has non-empty `tls.certFile` / `tls.keyFile` and the files exist, the proxy listens on HTTPS. Set the Chrome extension proxy scheme to `https`, not `http`.
 2. **Missing session** — check `journalctl -u go-proxy` for `missing_session_id` on CONNECT. Reload the extension and save your session ID again.
-3. **Domain blocked** — logs show `domain_not_allowed` when the site is outside the session domain and `defaultAllowedDomains`.
+3. **Domain blocked** — logs show `domain_not_allowed` when the site is outside the session domain and `defaultAllowedDomains` (authenticated traffic only).
+4. **Public domain** — logs show `"authMode":"public"` with empty `sessionId`; no 407 for hosts in `publicDomains`.
 4. **Upgrade** — rebuild and reinstall after CONNECT handler fixes: `make build && sudo make install-bin && sudo systemctl restart go-proxy`.
 
 ## Upgrade

@@ -4,13 +4,14 @@ Dual HTTP forward proxy implementation (**Node.js** and **Go**) with Valkey-back
 
 ## Overview
 
-Each session ID maps to exactly one allowed domain in Valkey. Example: `session1234` → `google.com` allows `google.com` and subdomains, but blocks `facebook.com`. Domains listed in `defaultAllowedDomains` in the config file are also permitted for any valid session (same suffix matching rules).
+Each session ID maps to exactly one allowed domain in Valkey. Example: `session1234` → `google.com` allows `google.com` and subdomains, but blocks `facebook.com`. Domains listed in `publicDomains` are reachable **without session auth** (IP allowlist only). Domains listed in `defaultAllowedDomains` are permitted for **authenticated** sessions in addition to each session's Valkey domain (same suffix matching rules).
 
 Every proxied request is gated by:
 
-1. **Client IP allowlist** (`ALLOWED_CLIENT_IPS`)
-2. **`X-Session-ID` header** (injected by the Chrome extension)
-3. **Domain match** between the requested host and the session's Valkey record
+1. **Client IP allowlist** (`allowedClientIps`)
+2. **Public domain bypass** (`publicDomains`) — no session required
+3. **Session auth** (407 / `Proxy-Authorization` / `X-Session-ID`) for all other hosts
+4. **Domain match** between the requested host and the session's Valkey record (or `defaultAllowedDomains` for authenticated traffic)
 
 ```mermaid
 flowchart LR
@@ -141,16 +142,25 @@ curl -x http://127.0.0.1:8080 \
 
 ## Domain Matching Rules
 
-A request is allowed when the host matches the session's Valkey domain **or** any entry in `defaultAllowedDomains` from the config file. Subdomains match (suffix-safe).
+### Public domains (`publicDomains`)
 
-| Requested host | Session domain | `defaultAllowedDomains` | Result |
-|----------------|----------------|-------------------------|--------|
-| `google.com` | `google.com` | `[]` | Allow |
-| `www.google.com` | `google.com` | `[]` | Allow |
-| `facebook.com` | `google.com` | `[]` | Deny |
-| `example.com` | `google.com` | `["example.com"]` | Allow |
-| `api.example.com` | `google.com` | `["example.com"]` | Allow |
-| `notgoogle.com` | `google.com` | `[]` | Deny |
+Hosts in `publicDomains` are allowed **without session credentials**. Only the client IP allowlist applies. CONNECT logs include `"authMode":"public"`.
+
+```bash
+# No -U required when example.com is in publicDomains
+curl -v -x http://127.0.0.1:8081 https://www.example.com -o /dev/null
+```
+
+### Authenticated domains
+
+For hosts **not** in `publicDomains`, a valid session is required. Access is allowed when the host matches the session's Valkey domain **or** any entry in `defaultAllowedDomains`. Subdomains match (suffix-safe).
+
+| Requested host | `publicDomains` | Session domain | `defaultAllowedDomains` | Result |
+|----------------|-----------------|----------------|-------------------------|--------|
+| `www.example.com` | `["example.com"]` | — | — | Allow (no auth) |
+| `google.com` | `[]` | `google.com` | `[]` | Allow (with session) |
+| `facebook.com` | `[]` | `google.com` | `[]` | Deny |
+| `example.com` | `[]` | `google.com` | `["example.com"]` | Allow (with session) |
 
 Matching is suffix-safe: host must equal the domain or end with `.` + domain.
 
@@ -206,6 +216,7 @@ Docker Compose mounts each file to `/config/config.json` inside the container.
   "trustProxyHeaders": false,
   "sessionHeader": "X-Session-ID",
   "defaultAllowedDomains": ["example.com", "localhost"],
+  "publicDomains": ["intranet.corp"],
   "tls": {
     "certFile": "/certs/tls.crt",
     "keyFile": "/certs/tls.key"
@@ -215,7 +226,8 @@ Docker Compose mounts each file to `/config/config.json` inside the container.
 
 | Field | Description |
 |-------|-------------|
-| `defaultAllowedDomains` | Optional list of domains allowed for every valid session (in addition to the session's Valkey domain). Uses the same suffix matching rules. Default: `[]`. |
+| `publicDomains` | Domains allowed **without session auth** (IP allowlist only). Uses suffix matching. Default: `[]`. |
+| `defaultAllowedDomains` | Optional list of domains allowed for every **authenticated** session (in addition to the session's Valkey domain). Uses the same suffix matching rules. Default: `[]`. |
 | `valkeyTls.enabled` | Enable TLS for Valkey and Sentinel connections. Default: `false`. |
 | `valkeyTls.caFile` | CA bundle to verify the Valkey/Sentinel server certificate. |
 | `valkeyTls.certFile` / `valkeyTls.keyFile` | Optional client certificate for mutual TLS. Both must be set together. |

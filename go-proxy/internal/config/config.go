@@ -44,6 +44,7 @@ type File struct {
 	ProxyTimeoutMs         int             `json:"proxyTimeoutMs"`
 	AllowedClientIps       []string        `json:"allowedClientIps"`
 	DefaultAllowedDomains  []string        `json:"defaultAllowedDomains"`
+	PublicDomains          []string        `json:"publicDomains"`
 	TrustProxyHeaders      bool            `json:"trustProxyHeaders"`
 	SessionHeader          string          `json:"sessionHeader"`
 	TLS                    TLS             `json:"tls"`
@@ -69,6 +70,7 @@ func defaultFile() File {
 		ProxyTimeoutMs:    30000,
 		AllowedClientIps:      []string{"127.0.0.1", "::1"},
 		DefaultAllowedDomains: []string{},
+		PublicDomains:         []string{},
 		TrustProxyHeaders:     false,
 		SessionHeader:     "X-Session-ID",
 	}
@@ -134,6 +136,9 @@ func Load(path string) (*Loaded, error) {
 	}
 	if cfg.DefaultAllowedDomains == nil {
 		cfg.DefaultAllowedDomains = defaultFile().DefaultAllowedDomains
+	}
+	if cfg.PublicDomains == nil {
+		cfg.PublicDomains = defaultFile().PublicDomains
 	}
 	if cfg.SessionHeader == "" {
 		cfg.SessionHeader = defaultFile().SessionHeader

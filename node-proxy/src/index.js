@@ -27,6 +27,7 @@ const proxyOptions = {
   sessionStore,
   sessionHeader: config.sessionHeader,
   defaultAllowedDomains: config.defaultAllowedDomains,
+  publicDomains: config.publicDomains,
   timeoutMs: config.proxyTimeoutMs,
 };
 

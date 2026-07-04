@@ -22,6 +22,7 @@ type Config struct {
 	SessionStore          *session.Store
 	SessionHeader         string
 	DefaultAllowedDomains []string
+	PublicDomains         []string
 	Timeout               time.Duration
 }
 
@@ -33,11 +34,15 @@ type authResult struct {
 	session       *session.Session
 	requestedHost string
 	authRequired  bool
+	publicAccess  bool
 }
 
 func (c *Config) authorize(r *http.Request, remoteAddr, requestedHost string) authResult {
 	if !c.Allowlist.IsAllowed(r, remoteAddr, c.TrustProxyHeaders) {
 		return authResult{ok: false, status: http.StatusForbidden, errorCode: "ip_not_allowed", requestedHost: requestedHost}
+	}
+	if domain.IsPublicHost(requestedHost, c.PublicDomains) {
+		return authResult{ok: true, requestedHost: requestedHost, publicAccess: true}
 	}
 	sessionID := proxyutil.SessionID(r, c.SessionHeader)
 	if sessionID == "" {
@@ -88,6 +93,13 @@ func connectTarget(r *http.Request) (host string, port string) {
 	return parseConnectTarget(r.Host)
 }
 
+func (c *Config) authMode(auth authResult) string {
+	if auth.publicAccess {
+		return "public"
+	}
+	return "session"
+}
+
 func (c *Config) logConnectEvent(start time.Time, clientIP string, auth authResult, host string, allowed bool, errCode string, extra map[string]interface{}) {
 	fields := map[string]interface{}{
 		"clientIp":      clientIP,
@@ -95,6 +107,7 @@ func (c *Config) logConnectEvent(start time.Time, clientIP string, auth authResu
 		"requestedHost": host,
 		"allowed":       allowed,
 		"method":        "CONNECT",
+		"authMode":      c.authMode(auth),
 		"latencyMs":     time.Since(start).Milliseconds(),
 	}
 	if errCode != "" {
@@ -149,7 +162,7 @@ func (c *Config) HandleConnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !domain.RequestHostAllowed(host, auth.session.Domain, c.DefaultAllowedDomains) {
+	if !auth.publicAccess && !domain.RequestHostAllowed(host, auth.session.Domain, c.DefaultAllowedDomains) {
 		_ = proxyutil.WriteConnectJSON(clientConn, http.StatusForbidden, http.StatusText(http.StatusForbidden), map[string]interface{}{
 			"error":         "domain_not_allowed",
 			"sessionDomain": auth.session.Domain,
@@ -216,12 +229,12 @@ func (c *Config) HandleHTTP(w http.ResponseWriter, r *http.Request) {
 		} else {
 			proxyutil.WriteJSON(w, auth.status, map[string]interface{}{"error": auth.errorCode, "sessionId": auth.sessionID})
 		}
-		proxyutil.LogEvent(map[string]interface{}{"clientIp": r.RemoteAddr, "sessionId": auth.sessionID, "allowed": false, "method": r.Method, "latencyMs": time.Since(start).Milliseconds(), "error": auth.errorCode})
+		proxyutil.LogEvent(map[string]interface{}{"clientIp": r.RemoteAddr, "sessionId": auth.sessionID, "allowed": false, "method": r.Method, "authMode": c.authMode(auth), "latencyMs": time.Since(start).Milliseconds(), "error": auth.errorCode})
 		return
 	}
-	if !domain.RequestHostAllowed(requestedHost, auth.session.Domain, c.DefaultAllowedDomains) {
+	if !auth.publicAccess && !domain.RequestHostAllowed(requestedHost, auth.session.Domain, c.DefaultAllowedDomains) {
 		proxyutil.WriteJSON(w, http.StatusForbidden, map[string]interface{}{"error": "domain_not_allowed", "sessionDomain": auth.session.Domain, "requestedHost": requestedHost, "sessionId": auth.sessionID})
-		proxyutil.LogEvent(map[string]interface{}{"clientIp": r.RemoteAddr, "sessionId": auth.sessionID, "sessionDomain": auth.session.Domain, "requestedHost": requestedHost, "allowed": false, "method": r.Method, "latencyMs": time.Since(start).Milliseconds(), "error": "domain_not_allowed"})
+		proxyutil.LogEvent(map[string]interface{}{"clientIp": r.RemoteAddr, "sessionId": auth.sessionID, "sessionDomain": auth.session.Domain, "requestedHost": requestedHost, "allowed": false, "method": r.Method, "authMode": c.authMode(auth), "latencyMs": time.Since(start).Milliseconds(), "error": "domain_not_allowed"})
 		return
 	}
 
@@ -232,7 +245,7 @@ func (c *Config) HandleHTTP(w http.ResponseWriter, r *http.Request) {
 	resp, err := client.Do(req)
 	if err != nil {
 		proxyutil.WriteJSON(w, http.StatusBadGateway, map[string]interface{}{"error": "upstream_unreachable"})
-		proxyutil.LogEvent(map[string]interface{}{"clientIp": r.RemoteAddr, "sessionId": auth.sessionID, "requestedHost": requestedHost, "allowed": true, "method": r.Method, "latencyMs": time.Since(start).Milliseconds(), "error": "upstream_unreachable"})
+		proxyutil.LogEvent(map[string]interface{}{"clientIp": r.RemoteAddr, "sessionId": auth.sessionID, "requestedHost": requestedHost, "allowed": true, "method": r.Method, "authMode": c.authMode(auth), "latencyMs": time.Since(start).Milliseconds(), "error": "upstream_unreachable"})
 		return
 	}
 	defer resp.Body.Close()
@@ -245,7 +258,20 @@ func (c *Config) HandleHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(resp.StatusCode)
 	_, _ = io.Copy(w, resp.Body)
-	proxyutil.LogEvent(map[string]interface{}{"clientIp": r.RemoteAddr, "sessionId": auth.sessionID, "sessionDomain": auth.session.Domain, "requestedHost": requestedHost, "allowed": true, "method": r.Method, "latencyMs": time.Since(start).Milliseconds(), "status": resp.StatusCode})
+	logFields := map[string]interface{}{
+		"clientIp":      r.RemoteAddr,
+		"sessionId":     auth.sessionID,
+		"requestedHost": requestedHost,
+		"allowed":       true,
+		"method":        r.Method,
+		"authMode":      c.authMode(auth),
+		"latencyMs":     time.Since(start).Milliseconds(),
+		"status":        resp.StatusCode,
+	}
+	if auth.session != nil {
+		logFields["sessionDomain"] = auth.session.Domain
+	}
+	proxyutil.LogEvent(logFields)
 }
 
 func (c *Config) ServeHTTP(w http.ResponseWriter, r *http.Request) {
