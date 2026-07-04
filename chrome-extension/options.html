@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Proxy Options</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 480px; padding: 16px; }
+      label { display: block; margin-top: 12px; }
+      input, select { width: 100%; box-sizing: border-box; padding: 6px; }
+      button { margin-top: 16px; padding: 8px 16px; }
+      .status { margin-top: 12px; color: #0a0; }
+    </style>
+  </head>
+  <body>
+    <h1>Forward Proxy Settings</h1>
+    <p>Configure which proxy server the extension routes Chrome through.</p>
+    <p style="font-size:12px;color:#b00;line-height:1.4;">
+      <strong>Important:</strong> Port <strong>8081</strong> is the forward proxy (HTTPS CONNECT).
+      Port <strong>9001</strong> is the admin API only (<code>/health</code>, <code>/sessions/:id</code>).
+      Using 9001 in this extension causes <code>ERR_TUNNEL_CONNECTION_FAILED</code> and Chrome
+      never receives 407.
+    </p>
+    <label for="proxyScheme">Proxy scheme</label>
+    <select id="proxyScheme">
+      <option value="http">http</option>
+      <option value="https">https (when proxy TLS is enabled)</option>
+    </select>
+    <label for="proxyHost">Proxy host</label>
+    <input id="proxyHost" type="text" placeholder="proxy.example.com" />
+    <p style="font-size:11px;color:#666;margin:4px 0 0;">
+      Hostname only — no <code>http://</code>, no port, no username/password.
+    </p>
+    <label for="proxyPort">Proxy port</label>
+    <input id="proxyPort" type="number" />
+    <button id="save">Save</button>
+    <button id="test" type="button">Test proxy port</button>
+    <p style="font-size:12px;color:#555;line-height:1.4;margin-top:12px;">
+      <strong>HTTPS proxy scheme</strong> (when go-proxy <code>tls.certFile</code> is set): the
+      certificate must match your FQDN and be trusted by Chrome (OS trust store). curl may work
+      with <code>--proxy-insecure</code>; Chrome has no equivalent — import your CA or use plain
+      <code>http</code> on an internal network.
+    </p>
+    <p style="font-size:12px;color:#555;line-height:1.4;margin-top:12px;">
+      <strong>407 test</strong> (from the same machine as Chrome):<br />
+      <code>curl -v -x https://HOST:8081 https://example.com -o /dev/null</code><br />
+      Do <em>not</em> use <code>-U</code> or <code>--proxy-insecure</code>. You should see
+      <code>HTTP/1.1 407 Proxy Authentication Required</code> after the TLS handshake.
+      If curl cannot connect or TLS fails, Chrome will also fail before any 407.
+      If curl gets <strong>403</strong> instead of 407, your client IP may be blocked in
+      <code>allowedClientIps</code> on the server.
+    </p>
+    <script src="rules.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>

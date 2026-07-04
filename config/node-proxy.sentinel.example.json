@@ -1,0 +1,40 @@
+{
+  "valkeyUrl": "rediss://valkey-master:6379",
+  "valkeyTls": {
+    "enabled": true,
+    "caFile": "/certs/valkey-ca.crt",
+    "certFile": "/certs/valkey-client.crt",
+    "keyFile": "/certs/valkey-client.key",
+    "serverName": "valkey-master",
+    "insecureSkipVerify": false
+  },
+  "valkeySentinel": {
+    "masterName": "valkey-master",
+    "sentinels": [
+      "sentinel-1:26379",
+      "sentinel-2:26379",
+      "sentinel-3:26379"
+    ],
+    "password": "",
+    "sentinelPassword": "",
+    "db": 0
+  },
+  "proxyPort": 8080,
+  "adminPort": 3001,
+  "proxyTimeoutMs": 30000,
+  "allowedClientIps": [
+    "127.0.0.1",
+    "::1",
+    "172.16.0.0/12",
+    "10.0.0.0/8",
+    "192.168.0.0/16"
+  ],
+  "trustProxyHeaders": false,
+  "sessionHeader": "X-Session-ID",
+  "defaultAllowedDomains": [],
+  "publicDomains": [],
+  "tls": {
+    "certFile": "/certs/tls.crt",
+    "keyFile": "/certs/tls.key"
+  }
+}
