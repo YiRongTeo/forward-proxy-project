@@ -74,3 +74,29 @@ func TestAuthorizeHeaderModeReadsHeaderOnly(t *testing.T) {
 		t.Fatalf("expected missing_session_id, got %+v", auth)
 	}
 }
+
+func TestResolveSessionIDAcceptsProxyAuth(t *testing.T) {
+	cfg := &Config{
+		SessionHeader:              "X-Session-ID",
+		AcceptSessionFromProxyAuth: true,
+	}
+
+	req := &http.Request{Method: http.MethodConnect, Header: make(http.Header)}
+	req.Header.Set("Proxy-Authorization", "Basic c2Vzc2lvbjEyMzQ6c2Vzc2lvbg==")
+	if got := cfg.resolveSessionID(req); got != "session1234" {
+		t.Fatalf("expected session1234 from proxy auth, got %q", got)
+	}
+}
+
+func TestResolveSessionIDIgnoresProxyAuthByDefault(t *testing.T) {
+	cfg := &Config{
+		SessionHeader:              "X-Session-ID",
+		AcceptSessionFromProxyAuth: false,
+	}
+
+	req := &http.Request{Method: http.MethodConnect, Header: make(http.Header)}
+	req.Header.Set("Proxy-Authorization", "Basic c2Vzc2lvbjEyMzQ6c2Vzc2lvbg==")
+	if got := cfg.resolveSessionID(req); got != "" {
+		t.Fatalf("expected empty session id, got %q", got)
+	}
+}

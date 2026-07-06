@@ -33,9 +33,10 @@ type File struct {
 	ProxyTimeoutMs    int             `json:"proxyTimeoutMs"`
 	AllowedClientIps  []string        `json:"allowedClientIps"`
 	TrustProxyHeaders         bool            `json:"trustProxyHeaders"`
-	SessionHeader             string          `json:"sessionHeader"`
-	RequireSessionFromHeader  bool            `json:"requireSessionFromHeader"`
-	TLS                       TLS             `json:"tls"`
+	SessionHeader              string          `json:"sessionHeader"`
+	RequireSessionFromHeader   bool            `json:"requireSessionFromHeader"`
+	AcceptSessionFromProxyAuth bool            `json:"acceptSessionFromProxyAuth"`
+	TLS                        TLS             `json:"tls"`
 }
 
 type Loaded struct {
@@ -58,8 +59,9 @@ func defaultFile() File {
 		ProxyTimeoutMs:    30000,
 		AllowedClientIps:  []string{"127.0.0.1", "::1"},
 		TrustProxyHeaders:        false,
-		SessionHeader:            "X-Session-ID",
-		RequireSessionFromHeader: true,
+		SessionHeader:              "X-Session-ID",
+		RequireSessionFromHeader:   true,
+		AcceptSessionFromProxyAuth: false,
 	}
 }
 

@@ -16,10 +16,7 @@ function getSessionIdFromHeader(req, sessionHeader) {
   return '';
 }
 
-function getSessionId(req, sessionHeader) {
-  const fromHeader = getSessionIdFromHeader(req, sessionHeader);
-  if (fromHeader) return fromHeader;
-
+function getSessionIdFromProxyAuth(req) {
   const proxyAuth = req.headers['proxy-authorization'];
   if (proxyAuth && proxyAuth.startsWith('Basic ')) {
     try {
@@ -34,4 +31,20 @@ function getSessionId(req, sessionHeader) {
   return '';
 }
 
-module.exports = { getSessionId, getSessionIdFromHeader };
+function resolveSessionId(req, sessionHeader, acceptProxyAuth) {
+  const fromHeader = getSessionIdFromHeader(req, sessionHeader);
+  if (fromHeader) return fromHeader;
+  if (acceptProxyAuth) return getSessionIdFromProxyAuth(req);
+  return '';
+}
+
+function getSessionId(req, sessionHeader) {
+  return resolveSessionId(req, sessionHeader, true);
+}
+
+module.exports = {
+  getSessionId,
+  getSessionIdFromHeader,
+  getSessionIdFromProxyAuth,
+  resolveSessionId,
+};

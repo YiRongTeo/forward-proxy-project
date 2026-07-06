@@ -42,19 +42,6 @@ func WriteJSON(w http.ResponseWriter, status int, body interface{}) {
 	_ = json.NewEncoder(w).Encode(body)
 }
 
-func WriteProxyAuthRequired(w http.ResponseWriter, body interface{}) {
-	w.Header().Set("Proxy-Authenticate", `Basic realm="forward-proxy"`)
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusProxyAuthRequired)
-	_ = json.NewEncoder(w).Encode(body)
-}
-
-func WriteConnectProxyAuthRequired(w http.ResponseWriter) {
-	w.Header().Set("Proxy-Authenticate", `Basic realm="forward-proxy"`)
-	w.Header().Set("Content-Length", "0")
-	w.WriteHeader(http.StatusProxyAuthRequired)
-}
-
 func LogEvent(fields map[string]interface{}) {
 	fields["ts"] = time.Now().UTC().Format(time.RFC3339Nano)
 	payload, _ := json.Marshal(fields)
@@ -71,11 +58,7 @@ func SessionIDFromHeader(r *http.Request, sessionHeader string) string {
 	return ""
 }
 
-func SessionID(r *http.Request, sessionHeader string) string {
-	if id := SessionIDFromHeader(r, sessionHeader); id != "" {
-		return id
-	}
-
+func SessionIDFromProxyAuth(r *http.Request) string {
 	auth := r.Header.Get("Proxy-Authorization")
 	if !strings.HasPrefix(auth, "Basic ") {
 		return ""
@@ -91,4 +74,14 @@ func SessionID(r *http.Request, sessionHeader string) string {
 		return ""
 	}
 	return strings.TrimSpace(parts[0])
+}
+
+func ResolveSessionID(r *http.Request, sessionHeader string, acceptProxyAuth bool) string {
+	if id := SessionIDFromHeader(r, sessionHeader); id != "" {
+		return id
+	}
+	if acceptProxyAuth {
+		return SessionIDFromProxyAuth(r)
+	}
+	return ""
 }

@@ -28,10 +28,11 @@
     <p class="meta" id="meta"></p>
     <div class="hint">
       The proxy reads your session ID from the <code>x-session-id</code> header
-      (no proxy login dialog). Save your session ID here — the extension injects
-      it via declarativeNetRequest. For HTTPS CONNECT, Chrome may not send the
-      header; use <code>requireSessionFromHeader: false</code> on the proxy for
-      open-relay browser testing, or use curl with <code>-H X-Session-ID: ...</code>.
+      and/or <code>Proxy-Authorization</code> (when
+      <code>acceptSessionFromProxyAuth: true</code> on the proxy). Save your
+      session ID here — the extension injects both via declarativeNetRequest.
+      The proxy never sends a 407 login challenge, so you can change the session
+      ID anytime without Chrome caching old credentials.
     </div>
     <script src="rules.js"></script>
     <script src="popup.js"></script>

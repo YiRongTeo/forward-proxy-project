@@ -61,9 +61,10 @@ func main() {
 		Allowlist:                allow,
 		TrustProxyHeaders:        cfg.TrustProxyHeaders,
 		SessionStore:             store,
-		SessionHeader:            cfg.SessionHeader,
-		RequireSessionFromHeader: cfg.RequireSessionFromHeader,
-		Timeout:                  time.Duration(cfg.ProxyTimeoutMs) * time.Millisecond,
+		SessionHeader:              cfg.SessionHeader,
+		RequireSessionFromHeader:   cfg.RequireSessionFromHeader,
+		AcceptSessionFromProxyAuth: cfg.AcceptSessionFromProxyAuth,
+		Timeout:                    time.Duration(cfg.ProxyTimeoutMs) * time.Millisecond,
 	}
 
 	proxyPort := strconv.Itoa(cfg.ProxyPort)
