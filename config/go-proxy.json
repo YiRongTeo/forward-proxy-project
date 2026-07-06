@@ -1,5 +1,13 @@
 {
   "valkeyUrl": "redis://valkey:6379",
+  "valkeyTls": {
+    "enabled": false,
+    "caFile": "",
+    "certFile": "",
+    "keyFile": "",
+    "serverName": "",
+    "insecureSkipVerify": false
+  },
   "proxyPort": 8081,
   "adminPort": 9001,
   "proxyTimeoutMs": 30000,
@@ -23,6 +31,8 @@
   "sessionHeader": "X-Session-ID",
   "requireSessionFromHeader": true,
   "acceptSessionFromProxyAuth": false,
+  "defaultAllowedDomains": [],
+  "publicDomains": [],
   "tls": {
     "certFile": "/certs/tls.crt",
     "keyFile": "/certs/tls.key"

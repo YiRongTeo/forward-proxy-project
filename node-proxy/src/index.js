@@ -27,6 +27,8 @@ const proxyOptions = {
   sessionHeader: config.sessionHeader,
   requireSessionFromHeader: config.requireSessionFromHeader,
   acceptSessionFromProxyAuth: config.acceptSessionFromProxyAuth,
+  defaultAllowedDomains: config.defaultAllowedDomains,
+  publicDomains: config.publicDomains,
   timeoutMs: config.proxyTimeoutMs,
 };
 

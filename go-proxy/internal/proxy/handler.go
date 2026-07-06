@@ -17,12 +17,14 @@ import (
 )
 
 type Config struct {
-	Allowlist                *allowlist.Allowlist
-	TrustProxyHeaders        bool
-	SessionStore             *session.Store
+	Allowlist                  *allowlist.Allowlist
+	TrustProxyHeaders          bool
+	SessionStore               *session.Store
 	SessionHeader              string
 	RequireSessionFromHeader   bool
 	AcceptSessionFromProxyAuth bool
+	DefaultAllowedDomains      []string
+	PublicDomains              []string
 	Timeout                    time.Duration
 }
 
@@ -34,9 +36,13 @@ type authResult struct {
 	session       *session.Session
 	requestedHost string
 	openAccess    bool
+	publicAccess  bool
 }
 
 func (c *Config) authMode(auth authResult) string {
+	if auth.publicAccess {
+		return "public"
+	}
 	if auth.openAccess {
 		return "open"
 	}
@@ -47,9 +53,19 @@ func (c *Config) resolveSessionID(r *http.Request) string {
 	return proxyutil.ResolveSessionID(r, c.SessionHeader, c.AcceptSessionFromProxyAuth)
 }
 
+func (c *Config) hostAllowed(auth authResult, host string) bool {
+	if auth.openAccess || auth.publicAccess {
+		return true
+	}
+	return domain.RequestHostAllowed(host, auth.session.Domain, c.DefaultAllowedDomains)
+}
+
 func (c *Config) authorize(r *http.Request, remoteAddr, requestedHost string) authResult {
 	if !c.Allowlist.IsAllowed(r, remoteAddr, c.TrustProxyHeaders) {
 		return authResult{ok: false, status: http.StatusForbidden, errorCode: "ip_not_allowed", requestedHost: requestedHost}
+	}
+	if domain.IsPublicHost(requestedHost, c.PublicDomains) {
+		return authResult{ok: true, requestedHost: requestedHost, publicAccess: true}
 	}
 	if !c.RequireSessionFromHeader {
 		return authResult{ok: true, requestedHost: requestedHost, openAccess: true}
@@ -96,6 +112,16 @@ func parseConnectTarget(target string) (host string, port string) {
 	return host, port
 }
 
+func connectTarget(r *http.Request) (host string, port string) {
+	if r.Method == http.MethodConnect && r.RequestURI != "" {
+		return parseConnectTarget(r.RequestURI)
+	}
+	if r.URL.Host != "" {
+		return parseConnectTarget(r.URL.Host)
+	}
+	return parseConnectTarget(r.Host)
+}
+
 func (c *Config) logConnectEvent(start time.Time, clientIP string, auth authResult, host string, allowed bool, errCode string, extra map[string]interface{}) {
 	fields := map[string]interface{}{
 		"clientIp":      clientIP,
@@ -120,30 +146,42 @@ func (c *Config) logConnectEvent(start time.Time, clientIP string, auth authResu
 
 func (c *Config) HandleConnect(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	host, port := parseConnectTarget(r.Host)
-	if r.URL.Host != "" {
-		host, port = parseConnectTarget(r.URL.Host)
-	}
-	if r.Method == http.MethodConnect {
-		host, port = parseConnectTarget(r.RequestURI)
-	}
+	host, port := connectTarget(r)
 	clientIP := c.Allowlist.ClientIP(r, r.RemoteAddr, c.TrustProxyHeaders).String()
 
 	auth := c.authorize(r, r.RemoteAddr, host)
+
+	hijacker, ok := w.(http.Hijacker)
+	if !ok {
+		proxyutil.WriteJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "hijack_not_supported"})
+		return
+	}
+
+	clientConn, bufrw, err := hijacker.Hijack()
+	if err != nil {
+		proxyutil.WriteJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "hijack_failed"})
+		return
+	}
+	defer clientConn.Close()
+
 	if !auth.ok {
-		proxyutil.WriteJSON(w, auth.status, map[string]interface{}{
+		body := map[string]interface{}{
 			"error":         auth.errorCode,
 			"requestedHost": host,
-			"sessionId":     auth.sessionID,
-		})
+		}
+		if auth.sessionID != "" {
+			body["sessionId"] = auth.sessionID
+		}
+		_ = proxyutil.WriteConnectJSON(clientConn, auth.status, http.StatusText(auth.status), body)
 		c.logConnectEvent(start, clientIP, auth, host, false, auth.errorCode, map[string]interface{}{
 			"hasSessionHeader": proxyutil.SessionIDFromHeader(r, c.SessionHeader) != "",
 			"hasProxyAuth":     proxyutil.SessionIDFromProxyAuth(r) != "",
 		})
 		return
 	}
-	if !auth.openAccess && !domain.HostAllowed(host, auth.session.Domain) {
-		proxyutil.WriteJSON(w, http.StatusForbidden, map[string]interface{}{
+
+	if !c.hostAllowed(auth, host) {
+		_ = proxyutil.WriteConnectJSON(clientConn, http.StatusForbidden, http.StatusText(http.StatusForbidden), map[string]interface{}{
 			"error":         "domain_not_allowed",
 			"sessionDomain": auth.session.Domain,
 			"requestedHost": host,
@@ -153,30 +191,27 @@ func (c *Config) HandleConnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hijacker, ok := w.(http.Hijacker)
-	if !ok {
-		proxyutil.WriteJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "hijack_not_supported"})
-		return
-	}
-	clientConn, bufrw, err := hijacker.Hijack()
-	if err != nil {
-		proxyutil.WriteJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "hijack_failed"})
-		return
-	}
-	defer clientConn.Close()
-
 	upstreamAddr := net.JoinHostPort(host, port)
 	upstreamConn, err := net.DialTimeout("tcp", upstreamAddr, c.Timeout)
 	if err != nil {
-		_, _ = bufrw.WriteString("HTTP/1.1 502 Bad Gateway\r\nContent-Type: application/json\r\n\r\n" + `{"error":"upstream_unreachable"}`)
-		_ = bufrw.Flush()
+		_ = proxyutil.WriteConnectJSON(clientConn, http.StatusBadGateway, http.StatusText(http.StatusBadGateway), map[string]interface{}{
+			"error":         "upstream_unreachable",
+			"requestedHost": host,
+		})
 		c.logConnectEvent(start, clientIP, auth, host, true, "upstream_unreachable", nil)
 		return
 	}
 	defer upstreamConn.Close()
 
-	_, _ = bufrw.WriteString("HTTP/1.1 200 Connection Established\r\n\r\n")
-	_ = bufrw.Flush()
+	if err := proxyutil.WriteConnectEstablished(clientConn); err != nil {
+		c.logConnectEvent(start, clientIP, auth, host, true, "connect_response_failed", nil)
+		return
+	}
+
+	if err := proxyutil.ForwardBuffered(bufrw.Reader, upstreamConn); err != nil {
+		c.logConnectEvent(start, clientIP, auth, host, true, "buffer_forward_failed", nil)
+		return
+	}
 
 	go pipe(upstreamConn, clientConn)
 	pipe(clientConn, upstreamConn)
@@ -219,7 +254,7 @@ func (c *Config) HandleHTTP(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if !auth.openAccess && !domain.HostAllowed(requestedHost, auth.session.Domain) {
+	if !c.hostAllowed(auth, requestedHost) {
 		proxyutil.WriteJSON(w, http.StatusForbidden, map[string]interface{}{
 			"error":         "domain_not_allowed",
 			"sessionDomain": auth.session.Domain,

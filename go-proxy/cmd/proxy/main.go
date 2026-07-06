@@ -58,12 +58,14 @@ func main() {
 	}
 
 	proxyCfg := &proxy.Config{
-		Allowlist:                allow,
-		TrustProxyHeaders:        cfg.TrustProxyHeaders,
-		SessionStore:             store,
+		Allowlist:                  allow,
+		TrustProxyHeaders:          cfg.TrustProxyHeaders,
+		SessionStore:               store,
 		SessionHeader:              cfg.SessionHeader,
 		RequireSessionFromHeader:   cfg.RequireSessionFromHeader,
 		AcceptSessionFromProxyAuth: cfg.AcceptSessionFromProxyAuth,
+		DefaultAllowedDomains:      cfg.DefaultAllowedDomains,
+		PublicDomains:              cfg.PublicDomains,
 		Timeout:                    time.Duration(cfg.ProxyTimeoutMs) * time.Millisecond,
 	}
 
