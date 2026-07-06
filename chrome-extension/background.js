@@ -82,46 +82,6 @@ async function applyDynamicHeaderRules(sessionId) {
   });
 }
 
-function isConfiguredProxyChallenge(details, proxyHost, proxyPort) {
-  if (details.isProxy) return true;
-  const challenger = details.challenger || {};
-  const challengerPort = parseInt(challenger.port, 10);
-  return challenger.host === proxyHost && challengerPort === proxyPort;
-}
-
-function registerProxyAuthHandler() {
-  if (registerProxyAuthHandler.registered) return;
-  registerProxyAuthHandler.registered = true;
-
-  chrome.webRequest.onAuthRequired.addListener(
-    (details, callback) => {
-      getConfig()
-        .then(({ sessionId, proxyHost, proxyPort }) => {
-          if (!sessionId) {
-            callback({});
-            return;
-          }
-
-          const port = parseInt(proxyPort, 10) || 8080;
-          if (!isConfiguredProxyChallenge(details, proxyHost, port)) {
-            callback({});
-            return;
-          }
-
-          callback({
-            authCredentials: {
-              username: sessionId,
-              password: 'session',
-            },
-          });
-        })
-        .catch(() => callback({}));
-    },
-    { urls: ['<all_urls>'] },
-    ['asyncBlocking']
-  );
-}
-
 function registerKeepAlive() {
   chrome.alarms.create('keepAlive', { periodInMinutes: 1 });
   chrome.alarms.onAlarm.addListener((alarm) => {
@@ -140,6 +100,7 @@ async function getRuleStatus() {
   return {
     dynamicRuleCount: dynamicRules.length,
     sessionRuleCount: sessionRules.length,
+    sessionDelivery: 'x-session-id header via declarativeNetRequest',
   };
 }
 
@@ -148,11 +109,9 @@ async function refresh() {
   const { sessionId } = await getConfig();
   await applyProxySettings();
   await applyDynamicHeaderRules(sessionId);
-  registerProxyAuthHandler();
   const status = await getRuleStatus();
   console.log('[forward-proxy-session] refreshed', {
     sessionId: sessionId ? `${sessionId.slice(0, 4)}...` : '(empty)',
-    sendsProxyAuthorization: Boolean(sessionId),
     ...status,
   });
   return status;

@@ -32,9 +32,10 @@ type File struct {
 	AdminPort         int             `json:"adminPort"`
 	ProxyTimeoutMs    int             `json:"proxyTimeoutMs"`
 	AllowedClientIps  []string        `json:"allowedClientIps"`
-	TrustProxyHeaders bool            `json:"trustProxyHeaders"`
-	SessionHeader     string          `json:"sessionHeader"`
-	TLS               TLS             `json:"tls"`
+	TrustProxyHeaders         bool            `json:"trustProxyHeaders"`
+	SessionHeader             string          `json:"sessionHeader"`
+	RequireSessionFromHeader  bool            `json:"requireSessionFromHeader"`
+	TLS                       TLS             `json:"tls"`
 }
 
 type Loaded struct {
@@ -56,8 +57,9 @@ func defaultFile() File {
 		AdminPort:         9001,
 		ProxyTimeoutMs:    30000,
 		AllowedClientIps:  []string{"127.0.0.1", "::1"},
-		TrustProxyHeaders: false,
-		SessionHeader:     "X-Session-ID",
+		TrustProxyHeaders:        false,
+		SessionHeader:            "X-Session-ID",
+		RequireSessionFromHeader: true,
 	}
 }
 
@@ -91,13 +93,13 @@ func ResolvePath(flagPath string) (string, error) {
 }
 
 func Load(path string) (*Loaded, error) {
-	raw, err := os.ReadFile(path)
+	rawBytes, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 
 	cfg := defaultFile()
-	if err := json.Unmarshal(raw, &cfg); err != nil {
+	if err := json.Unmarshal(rawBytes, &cfg); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
 
@@ -118,6 +120,12 @@ func Load(path string) (*Loaded, error) {
 	}
 	if cfg.SessionHeader == "" {
 		cfg.SessionHeader = defaultFile().SessionHeader
+	}
+	var rawFields map[string]json.RawMessage
+	if err := json.Unmarshal(rawBytes, &rawFields); err == nil {
+		if _, ok := rawFields["requireSessionFromHeader"]; !ok {
+			cfg.RequireSessionFromHeader = true
+		}
 	}
 
 	return &Loaded{

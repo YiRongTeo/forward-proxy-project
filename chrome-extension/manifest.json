@@ -1,16 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Forward Proxy Session",
-  "version": "1.2.1",
-  "description": "Routes Chrome through the forward proxy and sends the session via x-session-id and Proxy-Authorization.",
+  "version": "1.3.0",
+  "description": "Routes Chrome through the forward proxy and injects the session ID via x-session-id header.",
   "permissions": [
     "proxy",
     "storage",
     "alarms",
     "declarativeNetRequest",
-    "declarativeNetRequestWithHostAccess",
-    "webRequest",
-    "webRequestAuthProvider"
+    "declarativeNetRequestWithHostAccess"
   ],
   "host_permissions": [
     "<all_urls>"

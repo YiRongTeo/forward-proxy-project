@@ -27,10 +27,11 @@
     <p class="status" id="status"></p>
     <p class="meta" id="meta"></p>
     <div class="hint">
-      DevTools shows headers for the destination site, not the proxy tunnel.
-      The session is sent on the proxy <strong>CONNECT</strong> request as
-      <code>x-session-id</code> and/or <code>Proxy-Authorization</code>.
-      Filter Network by method CONNECT to inspect it.
+      The proxy reads your session ID from the <code>x-session-id</code> header
+      (no proxy login dialog). Save your session ID here — the extension injects
+      it via declarativeNetRequest. For HTTPS CONNECT, Chrome may not send the
+      header; use <code>requireSessionFromHeader: false</code> on the proxy for
+      open-relay browser testing, or use curl with <code>-H X-Session-ID: ...</code>.
     </div>
     <script src="rules.js"></script>
     <script src="popup.js"></script>

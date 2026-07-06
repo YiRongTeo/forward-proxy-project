@@ -1,6 +1,6 @@
 'use strict';
 
-function getSessionId(req, sessionHeader) {
+function getSessionIdFromHeader(req, sessionHeader) {
   const names = [
     sessionHeader.toLowerCase(),
     'x-session-id',
@@ -12,6 +12,13 @@ function getSessionId(req, sessionHeader) {
       return (Array.isArray(headerValue) ? headerValue[0] : headerValue).trim();
     }
   }
+
+  return '';
+}
+
+function getSessionId(req, sessionHeader) {
+  const fromHeader = getSessionIdFromHeader(req, sessionHeader);
+  if (fromHeader) return fromHeader;
 
   const proxyAuth = req.headers['proxy-authorization'];
   if (proxyAuth && proxyAuth.startsWith('Basic ')) {
@@ -27,4 +34,4 @@ function getSessionId(req, sessionHeader) {
   return '';
 }
 
-module.exports = { getSessionId };
+module.exports = { getSessionId, getSessionIdFromHeader };

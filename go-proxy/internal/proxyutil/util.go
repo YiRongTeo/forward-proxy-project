@@ -61,12 +61,19 @@ func LogEvent(fields map[string]interface{}) {
 	log.Println(string(payload))
 }
 
-func SessionID(r *http.Request, sessionHeader string) string {
+func SessionIDFromHeader(r *http.Request, sessionHeader string) string {
 	candidates := []string{sessionHeader, "X-Session-ID", "x-session-id"}
 	for _, name := range candidates {
 		if id := strings.TrimSpace(r.Header.Get(name)); id != "" {
 			return id
 		}
+	}
+	return ""
+}
+
+func SessionID(r *http.Request, sessionHeader string) string {
+	if id := SessionIDFromHeader(r, sessionHeader); id != "" {
+		return id
 	}
 
 	auth := r.Header.Get("Proxy-Authorization")

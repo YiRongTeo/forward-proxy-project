@@ -8,9 +8,9 @@ Each session ID maps to exactly one allowed domain in Valkey. Example: `session1
 
 Every proxied request is gated by:
 
-1. **Client IP allowlist** (`ALLOWED_CLIENT_IPS`)
-2. **`X-Session-ID` header** (injected by the Chrome extension)
-3. **Domain match** between the requested host and the session's Valkey record
+1. **Client IP allowlist** (`allowedClientIps`)
+2. **Session header** (`requireSessionFromHeader: true`) — session ID from `sessionHeader` (default `X-Session-ID`), Valkey lookup, domain match
+3. **Open relay** (`requireSessionFromHeader: false`) — forward any domain after IP check only (use with caution)
 
 ```mermaid
 flowchart LR
@@ -71,10 +71,10 @@ The proxy admin API only supports **read** operations: `GET /health` and `GET /s
 The extension:
 
 - Sets Chrome's forward proxy via `chrome.proxy.settings`
-- Sends the session ID on the **proxy CONNECT/HTTP request** as `x-session-id` (via declarativeNetRequest, including a CONNECT-specific rule) and as **proxy auth username** (via `webRequestAuthProvider`)
-- Applies **session rules on Save** (user gesture) for reliable CONNECT header injection
+- Injects the session ID as **`x-session-id`** on requests via declarativeNetRequest (no proxy 407 auth)
+- Applies **session rules on Save** (user gesture)
 
-**DevTools note:** When viewing `https://google.com` in the Network tab, you will **not** see `x-session-id` on the page request — that request is tunneled after CONNECT. Filter by method **CONNECT** to inspect headers sent to the proxy.
+**Note:** Chrome cannot inject custom headers on HTTPS **CONNECT** tunnels. For header-based session enforcement (`requireSessionFromHeader: true`), use curl or other clients that send the header on CONNECT, or set `requireSessionFromHeader: false` for open-relay browser testing (IP allowlist only).
 
 ## Manual curl Tests
 
@@ -95,13 +95,19 @@ curl -x http://127.0.0.1:8080 \
 # HTTP/1.1 403 Forbidden
 ```
 
-HTTPS CONNECT tunnel:
+HTTPS CONNECT tunnel (header mode):
 
 ```bash
-curl -x http://127.0.0.1:8080 \
+curl -v -x http://127.0.0.1:8081 \
   -H 'X-Session-ID: session1234' \
-  --connect-to ::google.com:443:127.0.0.1:8080 \
-  https://google.com/ -I
+  https://google.com -o /dev/null
+```
+
+Open relay (no session header required):
+
+```bash
+# requireSessionFromHeader: false in config
+curl -v -x http://127.0.0.1:8081 https://google.com -o /dev/null
 ```
 
 ## Domain Matching Rules
@@ -158,6 +164,7 @@ Docker Compose mounts each file to `/config/config.json` inside the container.
   "allowedClientIps": ["127.0.0.1", "::1", "172.16.0.0/12"],
   "trustProxyHeaders": false,
   "sessionHeader": "X-Session-ID",
+  "requireSessionFromHeader": true,
   "tls": {
     "certFile": "/certs/tls.crt",
     "keyFile": "/certs/tls.key"

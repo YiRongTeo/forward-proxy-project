@@ -14,6 +14,7 @@ const DEFAULTS = {
   allowedClientIps: ['127.0.0.1', '::1'],
   trustProxyHeaders: false,
   sessionHeader: 'X-Session-ID',
+  requireSessionFromHeader: true,
   tls: {
     certFile: '',
     keyFile: '',
@@ -70,6 +71,11 @@ function loadConfig(configPath) {
     ? parsed.allowedClientIps
     : DEFAULTS.allowedClientIps;
 
+  const requireSessionFromHeader =
+    parsed.requireSessionFromHeader !== undefined
+      ? Boolean(parsed.requireSessionFromHeader)
+      : DEFAULTS.requireSessionFromHeader;
+
   return {
     configPath: filePath,
     valkey: parseValkeyConfig(parsed),
@@ -79,6 +85,7 @@ function loadConfig(configPath) {
     allowedClientIps,
     trustProxyHeaders: Boolean(parsed.trustProxyHeaders),
     sessionHeader: parsed.sessionHeader || DEFAULTS.sessionHeader,
+    requireSessionFromHeader,
     tls: {
       certFile: parsed.tls?.certFile || '',
       keyFile: parsed.tls?.keyFile || '',

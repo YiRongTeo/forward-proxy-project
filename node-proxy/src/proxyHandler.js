@@ -4,8 +4,8 @@ const http = require('http');
 const net = require('net');
 const { URL } = require('url');
 const { hostAllowed } = require('./domainMatch');
-const { getSessionId } = require('./sessionAuth');
-const { stripHopByHop, sendJson, sendProxyAuthRequired, sendConnectProxyAuthRequired, logEvent } = require('./util');
+const { getSessionIdFromHeader } = require('./sessionAuth');
+const { stripHopByHop, sendJson, logEvent } = require('./util');
 
 function parseConnectTarget(target) {
   const trimmed = target.trim();
@@ -30,20 +30,24 @@ function parseConnectTarget(target) {
   return { host, port };
 }
 
-function getSessionIdFromRequest(req, sessionHeader) {
-  return getSessionId(req, sessionHeader);
+function authMode(auth) {
+  return auth.openAccess ? 'open' : 'header';
 }
 
 async function authorizeRequest(req, socket, options) {
-  const { allowlist, trustProxyHeaders, sessionStore, sessionHeader } = options;
+  const { allowlist, trustProxyHeaders, sessionStore, sessionHeader, requireSessionFromHeader } = options;
 
   if (!allowlist.isAllowed(req, socket, trustProxyHeaders)) {
     return { ok: false, status: 403, error: 'ip_not_allowed' };
   }
 
-  const sessionId = getSessionIdFromRequest(req, sessionHeader);
+  if (requireSessionFromHeader === false) {
+    return { ok: true, openAccess: true };
+  }
+
+  const sessionId = getSessionIdFromHeader(req, sessionHeader);
   if (!sessionId) {
-    return { ok: false, status: 407, error: 'missing_session_id', authRequired: true };
+    return { ok: false, status: 403, error: 'missing_session_id' };
   }
 
   const session = await sessionStore.getSession(sessionId);
@@ -78,31 +82,27 @@ function handleConnect(req, res, socket, head, options) {
   authorizeRequest(req, socket, options)
     .then((auth) => {
       if (!auth.ok) {
-        if (auth.authRequired) {
-          sendConnectProxyAuthRequired(res);
-        } else {
-          const body = {
-            error: auth.error,
-            requestedHost: host,
-          };
-          if (auth.sessionId) body.sessionId = auth.sessionId;
-          sendJson(res, auth.status, body);
-        }
+        const body = {
+          error: auth.error,
+          requestedHost: host,
+        };
+        if (auth.sessionId) body.sessionId = auth.sessionId;
+        sendJson(res, auth.status, body);
         logEvent({
           clientIp: socket.remoteAddress,
           sessionId: auth.sessionId || null,
           requestedHost: host,
           allowed: false,
           method: 'CONNECT',
+          authMode: authMode(auth),
           latencyMs: Date.now() - start,
           error: auth.error,
-          hasSessionHeader: Boolean(req.headers['x-session-id'] || req.headers['X-Session-ID']),
-          hasProxyAuth: Boolean(req.headers['proxy-authorization']),
+          hasSessionHeader: Boolean(getSessionIdFromHeader(req, options.sessionHeader)),
         });
         return;
       }
 
-      if (!hostAllowed(host, auth.session.domain)) {
+      if (!auth.openAccess && !hostAllowed(host, auth.session.domain)) {
         sendJson(res, 403, {
           error: 'domain_not_allowed',
           sessionDomain: auth.session.domain,
@@ -116,6 +116,7 @@ function handleConnect(req, res, socket, head, options) {
           requestedHost: host,
           allowed: false,
           method: 'CONNECT',
+          authMode: authMode(auth),
           latencyMs: Date.now() - start,
           error: 'domain_not_allowed',
         });
@@ -132,11 +133,12 @@ function handleConnect(req, res, socket, head, options) {
         tunnelSockets(socket, upstream, head);
         logEvent({
           clientIp: socket.remoteAddress,
-          sessionId: auth.sessionId,
-          sessionDomain: auth.session.domain,
+          sessionId: auth.sessionId || null,
+          sessionDomain: auth.session?.domain,
           requestedHost: host,
           allowed: true,
           method: 'CONNECT',
+          authMode: authMode(auth),
           latencyMs: Date.now() - start,
         });
       });
@@ -154,10 +156,11 @@ function handleConnect(req, res, socket, head, options) {
         }
         logEvent({
           clientIp: socket.remoteAddress,
-          sessionId: auth.sessionId,
+          sessionId: auth.sessionId || null,
           requestedHost: host,
           allowed: true,
           method: 'CONNECT',
+          authMode: authMode(auth),
           latencyMs: Date.now() - start,
           error: 'upstream_unreachable',
         });
@@ -176,16 +179,13 @@ function handleHttp(req, res, options) {
   authorizeRequest(req, socket, options)
     .then(async (auth) => {
       if (!auth.ok) {
-        if (auth.authRequired) {
-          sendProxyAuthRequired(res, { error: auth.error });
-        } else {
-          sendJson(res, auth.status, { error: auth.error, sessionId: auth.sessionId });
-        }
+        sendJson(res, auth.status, { error: auth.error, sessionId: auth.sessionId });
         logEvent({
           clientIp: socket.remoteAddress,
           sessionId: auth.sessionId || null,
           allowed: false,
           method: req.method,
+          authMode: authMode(auth),
           latencyMs: Date.now() - start,
           error: auth.error,
         });
@@ -201,7 +201,7 @@ function handleHttp(req, res, options) {
       }
 
       const requestedHost = targetUrl.hostname;
-      if (!hostAllowed(requestedHost, auth.session.domain)) {
+      if (!auth.openAccess && !hostAllowed(requestedHost, auth.session.domain)) {
         sendJson(res, 403, {
           error: 'domain_not_allowed',
           sessionDomain: auth.session.domain,
@@ -215,6 +215,7 @@ function handleHttp(req, res, options) {
           requestedHost,
           allowed: false,
           method: req.method,
+          authMode: authMode(auth),
           latencyMs: Date.now() - start,
           error: 'domain_not_allowed',
         });
@@ -240,11 +241,12 @@ function handleHttp(req, res, options) {
           proxyRes.pipe(res);
           logEvent({
             clientIp: socket.remoteAddress,
-            sessionId: auth.sessionId,
-            sessionDomain: auth.session.domain,
+            sessionId: auth.sessionId || null,
+            sessionDomain: auth.session?.domain,
             requestedHost,
             allowed: true,
             method: req.method,
+            authMode: authMode(auth),
             latencyMs: Date.now() - start,
             status: proxyRes.statusCode,
           });
@@ -260,10 +262,11 @@ function handleHttp(req, res, options) {
         if (!res.headersSent) sendJson(res, 502, { error: 'upstream_unreachable' });
         logEvent({
           clientIp: socket.remoteAddress,
-          sessionId: auth.sessionId,
+          sessionId: auth.sessionId || null,
           requestedHost,
           allowed: true,
           method: req.method,
+          authMode: authMode(auth),
           latencyMs: Date.now() - start,
           error: 'upstream_unreachable',
         });
@@ -287,4 +290,4 @@ function createProxyHandler(options) {
   };
 }
 
-module.exports = { createProxyHandler, handleConnect, handleHttp, authorizeRequest, getSessionIdFromRequest, parseConnectTarget };
+module.exports = { createProxyHandler, handleConnect, handleHttp, authorizeRequest, parseConnectTarget };

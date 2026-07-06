@@ -21,6 +21,7 @@
   ],
   "trustProxyHeaders": false,
   "sessionHeader": "X-Session-ID",
+  "requireSessionFromHeader": true,
   "tls": {
     "certFile": "/certs/tls.crt",
     "keyFile": "/certs/tls.key"
