@@ -6,9 +6,15 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"go-proxy/internal/config"
+	"go-proxy/internal/valkeytls"
 )
 
 func NewValkeyClient(valkey config.Valkey) (*redis.Client, error) {
+	tlsCfg, err := valkeytls.Build(valkey.TLS)
+	if err != nil {
+		return nil, err
+	}
+
 	if valkey.UseSentinel() {
 		return redis.NewFailoverClient(&redis.FailoverOptions{
 			MasterName:       valkey.Sentinel.MasterName,
@@ -16,6 +22,7 @@ func NewValkeyClient(valkey config.Valkey) (*redis.Client, error) {
 			Password:         valkey.Sentinel.Password,
 			SentinelPassword: valkey.Sentinel.SentinelPassword,
 			DB:               valkey.Sentinel.DB,
+			TLSConfig:        tlsCfg,
 		}), nil
 	}
 
@@ -23,12 +30,19 @@ func NewValkeyClient(valkey config.Valkey) (*redis.Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse valkey url: %w", err)
 	}
+	if tlsCfg != nil {
+		opt.TLSConfig = tlsCfg
+	}
 	return redis.NewClient(opt), nil
 }
 
 func ConnectionMode(valkey config.Valkey) string {
-	if valkey.UseSentinel() {
-		return "sentinel:" + valkey.Sentinel.MasterName + "@" + strings.Join(valkey.Sentinel.Sentinels, ",")
+	tlsSuffix := ""
+	if valkey.TLS.Enabled {
+		tlsSuffix = "+tls"
 	}
-	return "direct:" + valkey.URL
+	if valkey.UseSentinel() {
+		return "sentinel:" + valkey.Sentinel.MasterName + "@" + strings.Join(valkey.Sentinel.Sentinels, ",") + tlsSuffix
+	}
+	return "direct:" + valkey.URL + tlsSuffix
 }

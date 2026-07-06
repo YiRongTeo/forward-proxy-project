@@ -9,8 +9,9 @@ Each session ID maps to exactly one allowed domain in Valkey. Example: `session1
 Every proxied request is gated by:
 
 1. **Client IP allowlist** (`allowedClientIps`)
-2. **Session credential** (`requireSessionFromHeader: true`) — session ID from `sessionHeader` (default `X-Session-ID`) and/or `Proxy-Authorization` Basic username when `acceptSessionFromProxyAuth: true`, then Valkey lookup and domain match
-3. **Open relay** (`requireSessionFromHeader: false`) — forward any domain after IP check only (use with caution)
+2. **Public domains** (`publicDomains`) — optional bypass: no session required for listed hosts (still IP-checked)
+3. **Session credential** (`requireSessionFromHeader: true`) — session ID from `sessionHeader` and/or `Proxy-Authorization` when `acceptSessionFromProxyAuth: true`, then Valkey lookup and domain match (plus `defaultAllowedDomains`)
+4. **Open relay** (`requireSessionFromHeader: false`) — forward any domain after IP check only (use with caution)
 
 The proxy **never** returns `407 Proxy Authentication Required`. Missing credentials yield **403** instead, so browsers do not cache proxy login and users can change the session ID freely.
 
@@ -66,7 +67,7 @@ The proxy admin API only supports **read** operations: `GET /health` and `GET /s
 1. Open `chrome://extensions`
 2. Enable **Developer mode**
 3. **Load unpacked** → select [`chrome-extension/`](chrome-extension/)
-4. Open extension **Options** → set scheme (`http` or `https`), host `localhost`, port `8080` (Node) or `8081` (Go)
+4. Open extension **Options** → set scheme (`http` or `https`), host (hostname only — no `http://`), port `8080` (Node) or `8081` (Go). Use **Test proxy port** to verify reachability.
 5. Open extension **Popup** → enter session ID `session1234` → Save
 6. Browse to `https://google.com` (allowed) or `https://facebook.com` (blocked with 403)
 
@@ -176,6 +177,8 @@ Docker Compose mounts each file to `/config/config.json` inside the container.
   "sessionHeader": "X-Session-ID",
   "requireSessionFromHeader": true,
   "acceptSessionFromProxyAuth": true,
+  "defaultAllowedDomains": [],
+  "publicDomains": [],
   "tls": {
     "certFile": "/certs/tls.crt",
     "keyFile": "/certs/tls.key"
@@ -188,6 +191,25 @@ Docker Compose mounts each file to `/config/config.json` inside the container.
 | `requireSessionFromHeader` | When `true` (default), require a session credential and enforce Valkey domain rules. When `false`, open relay — forward any domain after IP allowlist only. |
 | `acceptSessionFromProxyAuth` | When `true`, read session ID from `Proxy-Authorization` Basic username (after `sessionHeader`). Default `false`. Never triggers 407 — missing credentials return 403. |
 | `sessionHeader` | Header name for session ID (default `X-Session-ID`). Checked before proxy auth. |
+| `publicDomains` | Hosts that skip session auth after IP check (e.g. `["example.com"]`). Logs `authMode: "public"`. |
+| `defaultAllowedDomains` | Extra domains allowed for authenticated sessions beyond each session's Valkey `domain`. |
+
+**Valkey TLS** (`valkeyTls`):
+
+```json
+"valkeyTls": {
+  "enabled": true,
+  "caFile": "/certs/valkey-ca.crt",
+  "certFile": "",
+  "keyFile": "",
+  "serverName": "valkey.internal",
+  "insecureSkipVerify": false
+}
+```
+
+Applies to direct Valkey and Sentinel connections.
+
+**RHEL / systemd:** see [`go-proxy/deploy/README.md`](go-proxy/deploy/README.md). Build with `make build`, install with `sudo make install`.
 
 **Local run:**
 

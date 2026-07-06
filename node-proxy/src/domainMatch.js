@@ -21,4 +21,18 @@ function hostAllowed(requestedHost, sessionDomain) {
   return host === domain || host.endsWith('.' + domain);
 }
 
-module.exports = { hostAllowed, normalizeHost };
+function isPublicHost(requestedHost, publicDomains) {
+  return publicDomains.some((allowed) => hostAllowed(requestedHost, allowed));
+}
+
+function requestHostAllowed(requestedHost, sessionDomain, defaultAllowedDomains) {
+  if (hostAllowed(requestedHost, sessionDomain)) return true;
+  return defaultAllowedDomains.some((allowed) => hostAllowed(requestedHost, allowed));
+}
+
+module.exports = {
+  hostAllowed,
+  normalizeHost,
+  isPublicHost,
+  requestHostAllowed,
+};

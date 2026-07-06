@@ -100,3 +100,47 @@ func TestResolveSessionIDIgnoresProxyAuthByDefault(t *testing.T) {
 		t.Fatalf("expected empty session id, got %q", got)
 	}
 }
+
+func TestAuthorizePublicHostSkipsSession(t *testing.T) {
+	allow, err := allowlist.Parse([]string{"127.0.0.1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &Config{
+		Allowlist:                allow,
+		RequireSessionFromHeader: true,
+		PublicDomains:            []string{"example.com"},
+	}
+
+	req := &http.Request{Method: http.MethodConnect, Header: make(http.Header)}
+	auth := cfg.authorize(req, "127.0.0.1:1234", "example.com")
+	if !auth.ok || !auth.publicAccess {
+		t.Fatalf("expected public host to authorize without session, got %+v", auth)
+	}
+	if cfg.authMode(auth) != "public" {
+		t.Fatalf("expected authMode public, got %s", cfg.authMode(auth))
+	}
+}
+
+func TestAuthorizeProtectedHostRequiresSession(t *testing.T) {
+	allow, err := allowlist.Parse([]string{"127.0.0.1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &Config{
+		Allowlist:                allow,
+		RequireSessionFromHeader: true,
+		PublicDomains:            []string{"example.com"},
+	}
+
+	req := &http.Request{Method: http.MethodConnect, Header: make(http.Header)}
+	auth := cfg.authorize(req, "127.0.0.1:1234", "google.com")
+	if auth.ok {
+		t.Fatal("expected missing session to deny protected host")
+	}
+	if auth.errorCode != "missing_session_id" || auth.status != http.StatusForbidden {
+		t.Fatalf("expected 403 missing_session_id, got %+v", auth)
+	}
+}

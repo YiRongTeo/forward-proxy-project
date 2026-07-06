@@ -3,7 +3,7 @@
 const http = require('http');
 const net = require('net');
 const { URL } = require('url');
-const { hostAllowed } = require('./domainMatch');
+const { requestHostAllowed, isPublicHost } = require('./domainMatch');
 const { resolveSessionId, getSessionIdFromHeader, getSessionIdFromProxyAuth } = require('./sessionAuth');
 const { stripHopByHop, sendJson, logEvent } = require('./util');
 
@@ -31,10 +31,11 @@ function parseConnectTarget(target) {
 }
 
 function authMode(auth) {
+  if (auth.publicAccess) return 'public';
   return auth.openAccess ? 'open' : 'header';
 }
 
-async function authorizeRequest(req, socket, options) {
+async function authorizeRequest(req, socket, options, requestedHost) {
   const {
     allowlist,
     trustProxyHeaders,
@@ -42,10 +43,15 @@ async function authorizeRequest(req, socket, options) {
     sessionHeader,
     requireSessionFromHeader,
     acceptSessionFromProxyAuth,
+    publicDomains,
   } = options;
 
   if (!allowlist.isAllowed(req, socket, trustProxyHeaders)) {
     return { ok: false, status: 403, error: 'ip_not_allowed' };
+  }
+
+  if (isPublicHost(requestedHost, publicDomains)) {
+    return { ok: true, publicAccess: true };
   }
 
   if (requireSessionFromHeader === false) {
@@ -86,7 +92,7 @@ function handleConnect(req, res, socket, head, options) {
   const { host, port } = parseConnectTarget(target);
   socket.on('error', () => {});
 
-  authorizeRequest(req, socket, options)
+  authorizeRequest(req, socket, options, host)
     .then((auth) => {
       if (!auth.ok) {
         const body = {
@@ -110,7 +116,7 @@ function handleConnect(req, res, socket, head, options) {
         return;
       }
 
-      if (!auth.openAccess && !hostAllowed(host, auth.session.domain)) {
+      if (!auth.openAccess && !auth.publicAccess && !requestHostAllowed(host, auth.session.domain, options.defaultAllowedDomains)) {
         sendJson(res, 403, {
           error: 'domain_not_allowed',
           sessionDomain: auth.session.domain,
@@ -184,7 +190,17 @@ function handleHttp(req, res, options) {
   const start = Date.now();
   const socket = req.socket;
 
-  authorizeRequest(req, socket, options)
+  let targetUrl;
+  try {
+    targetUrl = new URL(req.url);
+  } catch {
+    sendJson(res, 400, { error: 'invalid_request_url' });
+    return;
+  }
+
+  const requestedHost = targetUrl.hostname;
+
+  authorizeRequest(req, socket, options, requestedHost)
     .then(async (auth) => {
       if (!auth.ok) {
         sendJson(res, auth.status, { error: auth.error, sessionId: auth.sessionId });
@@ -200,16 +216,7 @@ function handleHttp(req, res, options) {
         return;
       }
 
-      let targetUrl;
-      try {
-        targetUrl = new URL(req.url);
-      } catch {
-        sendJson(res, 400, { error: 'invalid_request_url' });
-        return;
-      }
-
-      const requestedHost = targetUrl.hostname;
-      if (!auth.openAccess && !hostAllowed(requestedHost, auth.session.domain)) {
+      if (!auth.openAccess && !auth.publicAccess && !requestHostAllowed(requestedHost, auth.session.domain, options.defaultAllowedDomains)) {
         sendJson(res, 403, {
           error: 'domain_not_allowed',
           sessionDomain: auth.session.domain,

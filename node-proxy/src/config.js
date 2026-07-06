@@ -7,6 +7,14 @@ const DEFAULTS = {
   valkey: {
     url: 'redis://127.0.0.1:6379',
     sentinel: null,
+    tls: {
+      enabled: false,
+      caFile: '',
+      certFile: '',
+      keyFile: '',
+      serverName: '',
+      insecureSkipVerify: false,
+    },
   },
   proxyPort: 8080,
   adminPort: 3001,
@@ -16,11 +24,29 @@ const DEFAULTS = {
   sessionHeader: 'X-Session-ID',
   requireSessionFromHeader: true,
   acceptSessionFromProxyAuth: false,
+  defaultAllowedDomains: [],
+  publicDomains: [],
   tls: {
     certFile: '',
     keyFile: '',
   },
 };
+
+function parseValkeyTls(parsed) {
+  const input = parsed.valkeyTls;
+  if (!input) {
+    return { ...DEFAULTS.valkey.tls };
+  }
+
+  return {
+    enabled: Boolean(input.enabled),
+    caFile: input.caFile || '',
+    certFile: input.certFile || '',
+    keyFile: input.keyFile || '',
+    serverName: input.serverName || '',
+    insecureSkipVerify: Boolean(input.insecureSkipVerify),
+  };
+}
 
 function parseValkeyConfig(parsed) {
   const sentinelInput = parsed.valkeySentinel;
@@ -39,6 +65,7 @@ function parseValkeyConfig(parsed) {
   return {
     url: parsed.valkeyUrl || DEFAULTS.valkey.url,
     sentinel,
+    tls: parseValkeyTls(parsed),
   };
 }
 
@@ -82,6 +109,14 @@ function loadConfig(configPath) {
       ? Boolean(parsed.acceptSessionFromProxyAuth)
       : DEFAULTS.acceptSessionFromProxyAuth;
 
+  const defaultAllowedDomains = Array.isArray(parsed.defaultAllowedDomains)
+    ? parsed.defaultAllowedDomains.map(String)
+    : DEFAULTS.defaultAllowedDomains;
+
+  const publicDomains = Array.isArray(parsed.publicDomains)
+    ? parsed.publicDomains.map(String)
+    : DEFAULTS.publicDomains;
+
   return {
     configPath: filePath,
     valkey: parseValkeyConfig(parsed),
@@ -93,6 +128,8 @@ function loadConfig(configPath) {
     sessionHeader: parsed.sessionHeader || DEFAULTS.sessionHeader,
     requireSessionFromHeader,
     acceptSessionFromProxyAuth,
+    defaultAllowedDomains,
+    publicDomains,
     tls: {
       certFile: parsed.tls?.certFile || '',
       keyFile: parsed.tls?.keyFile || '',
