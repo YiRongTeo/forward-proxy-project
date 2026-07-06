@@ -1,0 +1,31 @@
+{
+  "valkeyUrl": "redis://valkey-master:6379",
+  "valkeySentinel": {
+    "masterName": "valkey-master",
+    "sentinels": [
+      "sentinel-1:26379",
+      "sentinel-2:26379",
+      "sentinel-3:26379"
+    ],
+    "password": "",
+    "sentinelPassword": "",
+    "db": 0
+  },
+  "proxyPort": 8081,
+  "adminPort": 9001,
+  "proxyTimeoutMs": 30000,
+  "allowedClientIps": [
+    "127.0.0.1",
+    "::1",
+    "172.16.0.0/12",
+    "10.0.0.0/8",
+    "192.168.0.0/16"
+  ],
+  "trustProxyHeaders": false,
+  "sessionHeader": "X-Session-ID",
+  "requireSessionFromHeader": true,
+  "tls": {
+    "certFile": "/certs/tls.crt",
+    "keyFile": "/certs/tls.key"
+  }
+}
