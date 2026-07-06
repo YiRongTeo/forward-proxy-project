@@ -26,6 +26,7 @@ const proxyOptions = {
   sessionStore,
   sessionHeader: config.sessionHeader,
   requireSessionFromHeader: config.requireSessionFromHeader,
+  acceptSessionFromProxyAuth: config.acceptSessionFromProxyAuth,
   timeoutMs: config.proxyTimeoutMs,
 };
 

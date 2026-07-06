@@ -100,7 +100,7 @@ async function getRuleStatus() {
   return {
     dynamicRuleCount: dynamicRules.length,
     sessionRuleCount: sessionRules.length,
-    sessionDelivery: 'x-session-id header via declarativeNetRequest',
+    sessionDelivery: 'x-session-id and proxy-authorization via declarativeNetRequest',
   };
 }
 

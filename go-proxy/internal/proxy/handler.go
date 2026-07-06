@@ -20,9 +20,10 @@ type Config struct {
 	Allowlist                *allowlist.Allowlist
 	TrustProxyHeaders        bool
 	SessionStore             *session.Store
-	SessionHeader            string
-	RequireSessionFromHeader bool
-	Timeout                  time.Duration
+	SessionHeader              string
+	RequireSessionFromHeader   bool
+	AcceptSessionFromProxyAuth bool
+	Timeout                    time.Duration
 }
 
 type authResult struct {
@@ -42,6 +43,10 @@ func (c *Config) authMode(auth authResult) string {
 	return "header"
 }
 
+func (c *Config) resolveSessionID(r *http.Request) string {
+	return proxyutil.ResolveSessionID(r, c.SessionHeader, c.AcceptSessionFromProxyAuth)
+}
+
 func (c *Config) authorize(r *http.Request, remoteAddr, requestedHost string) authResult {
 	if !c.Allowlist.IsAllowed(r, remoteAddr, c.TrustProxyHeaders) {
 		return authResult{ok: false, status: http.StatusForbidden, errorCode: "ip_not_allowed", requestedHost: requestedHost}
@@ -50,7 +55,7 @@ func (c *Config) authorize(r *http.Request, remoteAddr, requestedHost string) au
 		return authResult{ok: true, requestedHost: requestedHost, openAccess: true}
 	}
 
-	sessionID := proxyutil.SessionIDFromHeader(r, c.SessionHeader)
+	sessionID := c.resolveSessionID(r)
 	if sessionID == "" {
 		return authResult{ok: false, status: http.StatusForbidden, errorCode: "missing_session_id", requestedHost: requestedHost}
 	}
@@ -133,6 +138,7 @@ func (c *Config) HandleConnect(w http.ResponseWriter, r *http.Request) {
 		})
 		c.logConnectEvent(start, clientIP, auth, host, false, auth.errorCode, map[string]interface{}{
 			"hasSessionHeader": proxyutil.SessionIDFromHeader(r, c.SessionHeader) != "",
+			"hasProxyAuth":     proxyutil.SessionIDFromProxyAuth(r) != "",
 		})
 		return
 	}

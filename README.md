@@ -9,8 +9,10 @@ Each session ID maps to exactly one allowed domain in Valkey. Example: `session1
 Every proxied request is gated by:
 
 1. **Client IP allowlist** (`allowedClientIps`)
-2. **Session header** (`requireSessionFromHeader: true`) — session ID from `sessionHeader` (default `X-Session-ID`), Valkey lookup, domain match
+2. **Session credential** (`requireSessionFromHeader: true`) — session ID from `sessionHeader` (default `X-Session-ID`) and/or `Proxy-Authorization` Basic username when `acceptSessionFromProxyAuth: true`, then Valkey lookup and domain match
 3. **Open relay** (`requireSessionFromHeader: false`) — forward any domain after IP check only (use with caution)
+
+The proxy **never** returns `407 Proxy Authentication Required`. Missing credentials yield **403** instead, so browsers do not cache proxy login and users can change the session ID freely.
 
 ```mermaid
 flowchart LR
@@ -71,10 +73,10 @@ The proxy admin API only supports **read** operations: `GET /health` and `GET /s
 The extension:
 
 - Sets Chrome's forward proxy via `chrome.proxy.settings`
-- Injects the session ID as **`x-session-id`** on requests via declarativeNetRequest (no proxy 407 auth)
+- Injects the session ID as **`x-session-id`** and **`Proxy-Authorization`** (Basic `sessionId:session`) via declarativeNetRequest — no proxy login dialog and no 407 challenge
 - Applies **session rules on Save** (user gesture)
 
-**Note:** Chrome cannot inject custom headers on HTTPS **CONNECT** tunnels. For header-based session enforcement (`requireSessionFromHeader: true`), use curl or other clients that send the header on CONNECT, or set `requireSessionFromHeader: false` for open-relay browser testing (IP allowlist only).
+**Chrome HTTPS CONNECT:** Enable `acceptSessionFromProxyAuth: true` on the proxy so CONNECT tunnels can use the `Proxy-Authorization` header the extension injects. Plain `x-session-id` alone is not sent on CONNECT. The proxy still never issues 407 — missing credentials return 403.
 
 ## Manual curl Tests
 
@@ -100,6 +102,14 @@ HTTPS CONNECT tunnel (header mode):
 ```bash
 curl -v -x http://127.0.0.1:8081 \
   -H 'X-Session-ID: session1234' \
+  https://google.com -o /dev/null
+```
+
+HTTPS CONNECT tunnel (proxy auth mode — use with `acceptSessionFromProxyAuth: true`):
+
+```bash
+curl -v -x http://127.0.0.1:8081 \
+  -U 'session1234:session' \
   https://google.com -o /dev/null
 ```
 
@@ -165,6 +175,7 @@ Docker Compose mounts each file to `/config/config.json` inside the container.
   "trustProxyHeaders": false,
   "sessionHeader": "X-Session-ID",
   "requireSessionFromHeader": true,
+  "acceptSessionFromProxyAuth": true,
   "tls": {
     "certFile": "/certs/tls.crt",
     "keyFile": "/certs/tls.key"
@@ -174,8 +185,9 @@ Docker Compose mounts each file to `/config/config.json` inside the container.
 
 | Field | Description |
 |-------|-------------|
-| `requireSessionFromHeader` | When `true` (default), require session ID in `sessionHeader` and enforce Valkey domain rules. When `false`, open relay — forward any domain after IP allowlist only. |
-| `sessionHeader` | Header name for session ID (default `X-Session-ID`). |
+| `requireSessionFromHeader` | When `true` (default), require a session credential and enforce Valkey domain rules. When `false`, open relay — forward any domain after IP allowlist only. |
+| `acceptSessionFromProxyAuth` | When `true`, read session ID from `Proxy-Authorization` Basic username (after `sessionHeader`). Default `false`. Never triggers 407 — missing credentials return 403. |
+| `sessionHeader` | Header name for session ID (default `X-Session-ID`). Checked before proxy auth. |
 
 **Local run:**
 

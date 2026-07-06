@@ -4,7 +4,7 @@ const http = require('http');
 const net = require('net');
 const { URL } = require('url');
 const { hostAllowed } = require('./domainMatch');
-const { getSessionIdFromHeader } = require('./sessionAuth');
+const { resolveSessionId, getSessionIdFromHeader, getSessionIdFromProxyAuth } = require('./sessionAuth');
 const { stripHopByHop, sendJson, logEvent } = require('./util');
 
 function parseConnectTarget(target) {
@@ -35,7 +35,14 @@ function authMode(auth) {
 }
 
 async function authorizeRequest(req, socket, options) {
-  const { allowlist, trustProxyHeaders, sessionStore, sessionHeader, requireSessionFromHeader } = options;
+  const {
+    allowlist,
+    trustProxyHeaders,
+    sessionStore,
+    sessionHeader,
+    requireSessionFromHeader,
+    acceptSessionFromProxyAuth,
+  } = options;
 
   if (!allowlist.isAllowed(req, socket, trustProxyHeaders)) {
     return { ok: false, status: 403, error: 'ip_not_allowed' };
@@ -45,7 +52,7 @@ async function authorizeRequest(req, socket, options) {
     return { ok: true, openAccess: true };
   }
 
-  const sessionId = getSessionIdFromHeader(req, sessionHeader);
+  const sessionId = resolveSessionId(req, sessionHeader, acceptSessionFromProxyAuth);
   if (!sessionId) {
     return { ok: false, status: 403, error: 'missing_session_id' };
   }
@@ -98,6 +105,7 @@ function handleConnect(req, res, socket, head, options) {
           latencyMs: Date.now() - start,
           error: auth.error,
           hasSessionHeader: Boolean(getSessionIdFromHeader(req, options.sessionHeader)),
+          hasProxyAuth: Boolean(getSessionIdFromProxyAuth(req)),
         });
         return;
       }
