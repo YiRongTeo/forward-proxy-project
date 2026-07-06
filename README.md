@@ -172,6 +172,11 @@ Docker Compose mounts each file to `/config/config.json` inside the container.
 }
 ```
 
+| Field | Description |
+|-------|-------------|
+| `requireSessionFromHeader` | When `true` (default), require session ID in `sessionHeader` and enforce Valkey domain rules. When `false`, open relay — forward any domain after IP allowlist only. |
+| `sessionHeader` | Header name for session ID (default `X-Session-ID`). |
+
 **Local run:**
 
 ```bash
@@ -235,10 +240,9 @@ Compare Node (`8080`) vs Go (`8081`) using RPS, p99 latency, and 403 rates on de
 | Code | Meaning |
 |------|---------|
 | `400` | Invalid request URL |
-| `407` | Missing session ID (extension should respond with proxy credentials) |
-| `403` | IP not allowlisted or domain not allowed |
+| `403` | IP not allowlisted, missing session header, or domain not allowed |
 | `404` | Session not found in Valkey |
-| `502` | Upstream unreachable |
+| `502` | Upstream unreachable or Valkey error |
 | `504` | Upstream timeout |
 
 ## Project Layout
