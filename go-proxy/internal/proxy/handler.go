@@ -163,7 +163,10 @@ func (c *Config) HandleConnect(w http.ResponseWriter, r *http.Request) {
 
 	if !auth.ok {
 		if auth.authRequired {
-			_ = proxyutil.WriteConnectProxyAuthRequiredRaw(clientConn)
+			_ = proxyutil.WriteRawResponse(clientConn, http.StatusProxyAuthRequired, "Proxy Authentication Required", map[string]string{
+				"Proxy-Authenticate": `Basic realm="forward-proxy"`,
+				"Content-Length":     "0",
+			}, nil)
 		} else {
 			body := map[string]interface{}{
 				"error":         auth.errorCode,
@@ -232,7 +235,8 @@ func (c *Config) HandleHTTP(w http.ResponseWriter, r *http.Request) {
 	auth := c.authorize(r, r.RemoteAddr, requestedHost)
 	if !auth.ok {
 		if auth.authRequired {
-			proxyutil.WriteProxyAuthRequired(w, map[string]interface{}{"error": auth.errorCode})
+			w.Header().Set("Proxy-Authenticate", `Basic realm="forward-proxy"`)
+			proxyutil.WriteJSON(w, http.StatusProxyAuthRequired, map[string]interface{}{"error": auth.errorCode})
 		} else {
 			body := map[string]interface{}{"error": auth.errorCode}
 			if auth.userSessionID != "" {
