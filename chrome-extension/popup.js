@@ -12,7 +12,7 @@ function renderStatus(response) {
   const { config, status } = response;
   metaEl.textContent = [
     `Proxy: ${config.proxyScheme}://${config.proxyHost}:${config.proxyPort}`,
-    `Rules: ${status.dynamicRuleCount} dynamic, ${status.sessionRuleCount} session`,
+    `Auth: ${status.sessionDelivery}`,
   ].join(' | ');
 }
 

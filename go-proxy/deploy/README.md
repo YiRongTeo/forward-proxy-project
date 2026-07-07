@@ -4,14 +4,14 @@ Run the Go forward proxy as a systemd service on RHEL 8/9 (or compatible distros
 
 ## Valkey key schema
 
-Each domain entitlement is one key; the value is the password:
+Each domain entitlement is one key; the value is ignored (use a placeholder):
 
 ```bash
-valkey-cli SET 'sessions:alice:google.com' 's3cret' EX 3600
-valkey-cli SET 'sessions:alice:example.com' 's3cret' EX 3600
+valkey-cli SET 'sessions:alice:google.com' '1' EX 3600
+valkey-cli SET 'sessions:alice:example.com' '1' EX 3600
 ```
 
-Users authenticate with `Proxy-Authorization: Basic alice:s3cret`. The same credentials work on every proxy server.
+Users authenticate with `Proxy-Authorization: Basic {user}:{password}`. The username selects which keys to check; the password is not validated against Valkey. Missing credentials return **407**.
 
 Seed from the repo:
 
@@ -50,8 +50,8 @@ sudo journalctl -u go-proxy -f
 | `authMode: "credential"` | Proxy-Authorization validated against domain key |
 | `authMode: "public"` | Host in `publicDomains` |
 | `matchedDomainKey` | Valkey domain suffix that matched |
-| `invalid_credentials` | Key exists but password mismatch |
 | `domain_not_allowed` | No matching domain key |
+| `missing_credentials` | No `Proxy-Authorization` header (407) |
 
 ## Verify
 

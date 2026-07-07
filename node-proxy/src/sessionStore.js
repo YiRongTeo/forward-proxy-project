@@ -1,11 +1,9 @@
 'use strict';
 
-const crypto = require('crypto');
 const { createValkeyClient } = require('./valkeyClient');
 const { hostSuffixCandidates } = require('./domainMatch');
 
 const ERR_DOMAIN_NOT_ALLOWED = 'domain_not_allowed';
-const ERR_INVALID_CREDENTIALS = 'invalid_credentials';
 
 class SessionStore {
   constructor(options) {
@@ -33,42 +31,28 @@ class SessionStore {
     return entry;
   }
 
-  setCache(key, value, found) {
-    this.cache.set(key, { value, found, expiresAt: Date.now() + this.cacheTtlMs });
+  setCache(key, exists) {
+    this.cache.set(key, { exists, expiresAt: Date.now() + this.cacheTtlMs });
   }
 
-  async lookupDomainValue(userSessionId, domain) {
+  async domainKeyExists(userSessionId, domain) {
     const key = this.domainKey(userSessionId, domain);
     const cached = this.getCached(key);
     if (cached) {
-      return cached;
+      return cached.exists;
     }
 
-    const raw = await this.client.get(key);
-    const found = raw !== null;
-    this.setCache(key, raw || '', found);
-    return { value: raw || '', found };
+    const count = await this.client.exists(key);
+    const exists = count > 0;
+    this.setCache(key, exists);
+    return exists;
   }
 
-  timingSafeEqual(a, b) {
-    const bufA = Buffer.from(a);
-    const bufB = Buffer.from(b);
-    if (bufA.length !== bufB.length) {
-      return false;
-    }
-    return crypto.timingSafeEqual(bufA, bufB);
-  }
-
-  async authorizeDomainKey(userSessionId, password, requestedHost) {
+  async authorizeDomain(userSessionId, requestedHost) {
     for (const candidate of hostSuffixCandidates(requestedHost)) {
-      const { value, found } = await this.lookupDomainValue(userSessionId, candidate);
-      if (!found) continue;
-      if (this.timingSafeEqual(value, password)) {
+      if (await this.domainKeyExists(userSessionId, candidate)) {
         return candidate;
       }
-      const err = new Error(ERR_INVALID_CREDENTIALS);
-      err.code = ERR_INVALID_CREDENTIALS;
-      throw err;
     }
     const err = new Error(ERR_DOMAIN_NOT_ALLOWED);
     err.code = ERR_DOMAIN_NOT_ALLOWED;
@@ -98,5 +82,4 @@ class SessionStore {
 module.exports = {
   SessionStore,
   ERR_DOMAIN_NOT_ALLOWED,
-  ERR_INVALID_CREDENTIALS,
 };

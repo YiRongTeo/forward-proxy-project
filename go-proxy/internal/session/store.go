@@ -2,7 +2,6 @@ package session
 
 import (
 	"context"
-	"crypto/subtle"
 	"errors"
 	"sync"
 	"time"
@@ -12,23 +11,19 @@ import (
 	"go-proxy/internal/domain"
 )
 
-var (
-	ErrDomainNotAllowed     = errors.New("domain_not_allowed")
-	ErrInvalidCredentials   = errors.New("invalid_credentials")
-)
+var ErrDomainNotAllowed = errors.New("domain_not_allowed")
 
 type Store struct {
-	client         *redis.Client
-	mode           string
-	prefix         string
-	cache          map[string]valueCacheEntry
-	cacheMu        sync.RWMutex
-	cacheTTL       time.Duration
+	client   *redis.Client
+	mode     string
+	prefix   string
+	cache    map[string]existsCacheEntry
+	cacheMu  sync.RWMutex
+	cacheTTL time.Duration
 }
 
-type valueCacheEntry struct {
-	value     string
-	found     bool
+type existsCacheEntry struct {
+	exists    bool
 	expiresAt time.Time
 }
 
@@ -44,7 +39,7 @@ func NewStore(valkey config.Valkey, sessionsPrefix string) (*Store, error) {
 		client:   client,
 		mode:     ConnectionMode(valkey),
 		prefix:   sessionsPrefix,
-		cache:    make(map[string]valueCacheEntry),
+		cache:    make(map[string]existsCacheEntry),
 		cacheTTL: 30 * time.Second,
 	}, nil
 }
@@ -61,54 +56,48 @@ func (s *Store) Ping(ctx context.Context) error {
 	return s.client.Ping(ctx).Err()
 }
 
-func (s *Store) getCachedValue(key string) (string, bool, bool) {
+func (s *Store) getCachedExists(key string) (bool, bool) {
 	s.cacheMu.RLock()
 	defer s.cacheMu.RUnlock()
 	entry, ok := s.cache[key]
 	if !ok || time.Now().After(entry.expiresAt) {
-		return "", false, false
+		return false, false
 	}
-	return entry.value, entry.found, true
+	return entry.exists, true
 }
 
-func (s *Store) setCachedValue(key, value string, found bool) {
+func (s *Store) setCachedExists(key string, exists bool) {
 	s.cacheMu.Lock()
 	defer s.cacheMu.Unlock()
-	s.cache[key] = valueCacheEntry{value: value, found: found, expiresAt: time.Now().Add(s.cacheTTL)}
+	s.cache[key] = existsCacheEntry{exists: exists, expiresAt: time.Now().Add(s.cacheTTL)}
 }
 
-func (s *Store) lookupDomainValue(ctx context.Context, userSessionID, domain string) (string, bool, error) {
+func (s *Store) domainKeyExists(ctx context.Context, userSessionID, domain string) (bool, error) {
 	key := s.domainKey(userSessionID, domain)
-	if value, found, ok := s.getCachedValue(key); ok {
-		return value, found, nil
+	if exists, ok := s.getCachedExists(key); ok {
+		return exists, nil
 	}
 
-	raw, err := s.client.Get(ctx, key).Result()
-	if err == redis.Nil {
-		s.setCachedValue(key, "", false)
-		return "", false, nil
-	}
+	count, err := s.client.Exists(ctx, key).Result()
 	if err != nil {
-		return "", false, err
+		return false, err
 	}
-	s.setCachedValue(key, raw, true)
-	return raw, true, nil
+	exists := count > 0
+	s.setCachedExists(key, exists)
+	return exists, nil
 }
 
-// AuthorizeDomainKey verifies password against sessions:{userSessionID}:{domain} for host suffixes.
-func (s *Store) AuthorizeDomainKey(ctx context.Context, userSessionID, password, requestedHost string) (matchedDomain string, err error) {
+// AuthorizeDomain checks sessions:{userSessionID}:{domain} key existence for host suffixes.
+// The key value is not validated; any password in Proxy-Authorization is ignored.
+func (s *Store) AuthorizeDomain(ctx context.Context, userSessionID, requestedHost string) (matchedDomain string, err error) {
 	for _, candidate := range domain.HostSuffixCandidates(requestedHost) {
-		stored, found, lookupErr := s.lookupDomainValue(ctx, userSessionID, candidate)
+		exists, lookupErr := s.domainKeyExists(ctx, userSessionID, candidate)
 		if lookupErr != nil {
 			return "", lookupErr
 		}
-		if !found {
-			continue
-		}
-		if subtle.ConstantTimeCompare([]byte(stored), []byte(password)) == 1 {
+		if exists {
 			return candidate, nil
 		}
-		return "", ErrInvalidCredentials
 	}
 	return "", ErrDomainNotAllowed
 }

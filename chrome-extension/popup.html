@@ -29,9 +29,9 @@
     <p class="status" id="status"></p>
     <p class="meta" id="meta"></p>
     <div class="hint">
-      The proxy validates <code>Proxy-Authorization</code> against Valkey keys
-      <code>sessions:{user}:{domain}</code>. Use the same username and password
-      on every proxy server. Add domains in Valkey without changing browser credentials.
+      The proxy checks that a Valkey key <code>sessions:{user}:{domain}</code> exists.
+      The key value is ignored. Save your user session ID and a fixed password here;
+      Chrome caches proxy credentials after the first 407 challenge.
     </div>
     <script src="rules.js"></script>
     <script src="popup.js"></script>

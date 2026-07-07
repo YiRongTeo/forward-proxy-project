@@ -47,6 +47,12 @@ func TestAuthorizeMissingCredentials(t *testing.T) {
 	if auth.errorCode != "missing_credentials" {
 		t.Fatalf("expected missing_credentials, got %+v", auth)
 	}
+	if auth.status != http.StatusProxyAuthRequired {
+		t.Fatalf("expected status 407, got %d", auth.status)
+	}
+	if !auth.authRequired {
+		t.Fatal("expected authRequired true")
+	}
 }
 
 func TestAuthorizePublicHostSkipsSession(t *testing.T) {

@@ -8,50 +8,53 @@ import (
 	"go-proxy/internal/config"
 )
 
-func TestAuthorizeDomainKey(t *testing.T) {
+func TestAuthorizeDomain(t *testing.T) {
 	mr, err := miniredis.Run()
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer mr.Close()
 
-	mr.Set("sessions:alice:google.com", "s3cret")
+	mr.Set("sessions:alice:google.com", "1")
 
 	store, err := NewStore(configValkey(mr.Addr()), "sessions")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	matched, err := store.AuthorizeDomainKey(context.Background(), "alice", "s3cret", "www.google.com")
+	matched, err := store.AuthorizeDomain(context.Background(), "alice", "www.google.com")
 	if err != nil {
-		t.Fatalf("AuthorizeDomainKey: %v", err)
+		t.Fatalf("AuthorizeDomain: %v", err)
 	}
 	if matched != "google.com" {
 		t.Fatalf("matched = %q, want google.com", matched)
 	}
 }
 
-func TestAuthorizeDomainKeyWrongPassword(t *testing.T) {
+func TestAuthorizeDomainAnyPasswordIgnored(t *testing.T) {
 	mr, err := miniredis.Run()
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer mr.Close()
 
-	mr.Set("sessions:alice:google.com", "s3cret")
+	mr.Set("sessions:alice:google.com", "placeholder")
 
 	store, err := NewStore(configValkey(mr.Addr()), "sessions")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = store.AuthorizeDomainKey(context.Background(), "alice", "wrong", "google.com")
-	if err != ErrInvalidCredentials {
-		t.Fatalf("expected ErrInvalidCredentials, got %v", err)
+	matched, err := store.AuthorizeDomain(context.Background(), "alice", "google.com")
+	if err != nil {
+		t.Fatalf("AuthorizeDomain should succeed when key exists regardless of password: %v", err)
+	}
+	if matched != "google.com" {
+		t.Fatalf("matched = %q, want google.com", matched)
 	}
 }
 
-func TestAuthorizeDomainKeyMissingKey(t *testing.T) {
+func TestAuthorizeDomainMissingKey(t *testing.T) {
 	mr, err := miniredis.Run()
 	if err != nil {
 		t.Fatal(err)
@@ -63,7 +66,7 @@ func TestAuthorizeDomainKeyMissingKey(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = store.AuthorizeDomainKey(context.Background(), "alice", "s3cret", "facebook.com")
+	_, err = store.AuthorizeDomain(context.Background(), "alice", "facebook.com")
 	if err != ErrDomainNotAllowed {
 		t.Fatalf("expected ErrDomainNotAllowed, got %v", err)
 	}

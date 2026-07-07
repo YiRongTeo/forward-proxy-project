@@ -60,5 +60,5 @@ seed_user_domain() {
 
   printf '%s' "$password" | seed_run_cli -x SET "${SESSIONS_PREFIX}:${user_session_id}:${domain}" EX "$TTL"
 
-  echo "Seeded ${SESSIONS_PREFIX}:${user_session_id}:${domain} (TTL ${TTL}s)"
+  echo "Seeded ${SESSIONS_PREFIX}:${user_session_id}:${domain} (value ignored, TTL ${TTL}s)"
 }

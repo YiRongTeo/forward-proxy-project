@@ -35,6 +35,7 @@ type authResult struct {
 	requestedHost   string
 	openAccess      bool
 	publicAccess    bool
+	authRequired    bool
 }
 
 func (c *Config) authMode(auth authResult) string {
@@ -58,16 +59,14 @@ func (c *Config) authorize(r *http.Request, remoteAddr, requestedHost string) au
 		return authResult{ok: true, requestedHost: requestedHost, openAccess: true}
 	}
 
-	userSessionID, password, ok := proxyutil.ProxyAuthCredentials(r)
+	userSessionID, _, ok := proxyutil.ProxyAuthCredentials(r)
 	if !ok {
-		return authResult{ok: false, status: http.StatusForbidden, errorCode: "missing_credentials", requestedHost: requestedHost}
+		return authResult{ok: false, status: http.StatusProxyAuthRequired, errorCode: "missing_credentials", requestedHost: requestedHost, authRequired: true}
 	}
 
-	matchedDomain, err := c.SessionStore.AuthorizeDomainKey(context.Background(), userSessionID, password, requestedHost)
+	matchedDomain, err := c.SessionStore.AuthorizeDomain(context.Background(), userSessionID, requestedHost)
 	if err != nil {
 		switch {
-		case errors.Is(err, session.ErrInvalidCredentials):
-			return authResult{ok: false, status: http.StatusForbidden, errorCode: "invalid_credentials", userSessionID: userSessionID, requestedHost: requestedHost}
 		case errors.Is(err, session.ErrDomainNotAllowed):
 			return authResult{ok: false, status: http.StatusForbidden, errorCode: "domain_not_allowed", userSessionID: userSessionID, requestedHost: requestedHost}
 		default:
@@ -163,14 +162,18 @@ func (c *Config) HandleConnect(w http.ResponseWriter, r *http.Request) {
 	defer clientConn.Close()
 
 	if !auth.ok {
-		body := map[string]interface{}{
-			"error":         auth.errorCode,
-			"requestedHost": host,
+		if auth.authRequired {
+			_ = proxyutil.WriteConnectProxyAuthRequiredRaw(clientConn)
+		} else {
+			body := map[string]interface{}{
+				"error":         auth.errorCode,
+				"requestedHost": host,
+			}
+			if auth.userSessionID != "" {
+				body["userSessionId"] = auth.userSessionID
+			}
+			_ = proxyutil.WriteConnectJSON(clientConn, auth.status, http.StatusText(auth.status), body)
 		}
-		if auth.userSessionID != "" {
-			body["userSessionId"] = auth.userSessionID
-		}
-		_ = proxyutil.WriteConnectJSON(clientConn, auth.status, http.StatusText(auth.status), body)
 		c.logConnectEvent(start, clientIP, auth, host, false, auth.errorCode, map[string]interface{}{
 			"hasProxyAuth": proxyutil.HasProxyAuth(r),
 		})
@@ -228,11 +231,15 @@ func (c *Config) HandleHTTP(w http.ResponseWriter, r *http.Request) {
 	requestedHost := req.URL.Hostname()
 	auth := c.authorize(r, r.RemoteAddr, requestedHost)
 	if !auth.ok {
-		body := map[string]interface{}{"error": auth.errorCode}
-		if auth.userSessionID != "" {
-			body["userSessionId"] = auth.userSessionID
+		if auth.authRequired {
+			proxyutil.WriteProxyAuthRequired(w, map[string]interface{}{"error": auth.errorCode})
+		} else {
+			body := map[string]interface{}{"error": auth.errorCode}
+			if auth.userSessionID != "" {
+				body["userSessionId"] = auth.userSessionID
+			}
+			proxyutil.WriteJSON(w, auth.status, body)
 		}
-		proxyutil.WriteJSON(w, auth.status, body)
 		proxyutil.LogEvent(map[string]interface{}{
 			"clientIp":      r.RemoteAddr,
 			"userSessionId": auth.userSessionID,

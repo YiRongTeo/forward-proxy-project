@@ -5,8 +5,14 @@ const net = require('net');
 const { URL } = require('url');
 const { isPublicHost } = require('./domainMatch');
 const { parseProxyAuth, hasProxyAuth } = require('./sessionAuth');
-const { ERR_DOMAIN_NOT_ALLOWED, ERR_INVALID_CREDENTIALS } = require('./sessionStore');
-const { stripHopByHop, sendJson, logEvent } = require('./util');
+const { ERR_DOMAIN_NOT_ALLOWED } = require('./sessionStore');
+const {
+  stripHopByHop,
+  sendJson,
+  sendProxyAuthRequired,
+  sendConnectProxyAuthRequired,
+  logEvent,
+} = require('./util');
 
 function parseConnectTarget(target) {
   const trimmed = target.trim();
@@ -36,6 +42,23 @@ function authMode(auth) {
   return auth.openAccess ? 'open' : 'credential';
 }
 
+function sendAuthFailure(res, auth, host, isConnect) {
+  if (auth.authRequired) {
+    if (isConnect) {
+      sendConnectProxyAuthRequired(res);
+    } else {
+      sendProxyAuthRequired(res, { error: auth.error });
+    }
+    return;
+  }
+
+  const body = isConnect
+    ? { error: auth.error, requestedHost: host }
+    : { error: auth.error };
+  if (auth.userSessionId) body.userSessionId = auth.userSessionId;
+  sendJson(res, auth.status, body);
+}
+
 async function authorizeRequest(req, socket, options, requestedHost) {
   const { allowlist, trustProxyHeaders, sessionStore, requireProxyAuth, publicDomains } = options;
 
@@ -53,24 +76,17 @@ async function authorizeRequest(req, socket, options, requestedHost) {
 
   const creds = parseProxyAuth(req);
   if (!creds) {
-    return { ok: false, status: 403, error: 'missing_credentials' };
+    return { ok: false, status: 407, error: 'missing_credentials', authRequired: true };
   }
 
   try {
-    const matchedDomain = await sessionStore.authorizeDomainKey(
-      creds.userSessionId,
-      creds.password,
-      requestedHost
-    );
+    const matchedDomain = await sessionStore.authorizeDomain(creds.userSessionId, requestedHost);
     return {
       ok: true,
       userSessionId: creds.userSessionId,
       matchedDomain,
     };
   } catch (err) {
-    if (err.code === ERR_INVALID_CREDENTIALS) {
-      return { ok: false, status: 403, error: 'invalid_credentials', userSessionId: creds.userSessionId };
-    }
     if (err.code === ERR_DOMAIN_NOT_ALLOWED) {
       return { ok: false, status: 403, error: 'domain_not_allowed', userSessionId: creds.userSessionId };
     }
@@ -103,12 +119,7 @@ function handleConnect(req, res, socket, head, options) {
   authorizeRequest(req, socket, options, host)
     .then((auth) => {
       if (!auth.ok) {
-        const body = {
-          error: auth.error,
-          requestedHost: host,
-        };
-        if (auth.userSessionId) body.userSessionId = auth.userSessionId;
-        sendJson(res, auth.status, body);
+        sendAuthFailure(res, auth, host, true);
         logEvent({
           clientIp: socket.remoteAddress,
           userSessionId: auth.userSessionId || null,
@@ -189,9 +200,7 @@ function handleHttp(req, res, options) {
   authorizeRequest(req, socket, options, requestedHost)
     .then(async (auth) => {
       if (!auth.ok) {
-        const body = { error: auth.error };
-        if (auth.userSessionId) body.userSessionId = auth.userSessionId;
-        sendJson(res, auth.status, body);
+        sendAuthFailure(res, auth, requestedHost, false);
         logEvent({
           clientIp: socket.remoteAddress,
           userSessionId: auth.userSessionId || null,
