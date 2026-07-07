@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Session ID</title>
+    <title>Proxy Credentials</title>
     <style>
       body { font-family: system-ui, sans-serif; min-width: 320px; padding: 12px; }
       label { display: block; font-size: 12px; margin-bottom: 4px; }
@@ -21,18 +21,17 @@
     </style>
   </head>
   <body>
-    <label for="sessionId">Session ID</label>
-    <input id="sessionId" type="text" placeholder="session1234" />
+    <label for="userSessionId">User session ID (proxy username)</label>
+    <input id="userSessionId" type="text" placeholder="alice" />
+    <label for="password">Password</label>
+    <input id="password" type="password" placeholder="password" />
     <button id="save">Save &amp; Apply</button>
     <p class="status" id="status"></p>
     <p class="meta" id="meta"></p>
     <div class="hint">
-      The proxy reads your session ID from the <code>x-session-id</code> header
-      and/or <code>Proxy-Authorization</code> (when
-      <code>acceptSessionFromProxyAuth: true</code> on the proxy). Save your
-      session ID here — the extension injects both via declarativeNetRequest.
-      The proxy never sends a 407 login challenge, so you can change the session
-      ID anytime without Chrome caching old credentials.
+      The proxy validates <code>Proxy-Authorization</code> against Valkey keys
+      <code>sessions:{user}:{domain}</code>. Use the same username and password
+      on every proxy server. Add domains in Valkey without changing browser credentials.
     </div>
     <script src="rules.js"></script>
     <script src="popup.js"></script>

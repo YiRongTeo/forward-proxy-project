@@ -11,12 +11,10 @@ const HOP_BY_HOP = new Set([
   'upgrade',
 ]);
 
-function stripHopByHop(headers, sessionHeader) {
+function stripHopByHop(headers) {
   const out = {};
   for (const [key, value] of Object.entries(headers)) {
-    const lower = key.toLowerCase();
-    if (HOP_BY_HOP.has(lower)) continue;
-    if (lower === sessionHeader.toLowerCase()) continue;
+    if (HOP_BY_HOP.has(key.toLowerCase())) continue;
     out[key] = value;
   }
   return out;

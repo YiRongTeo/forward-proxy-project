@@ -36,14 +36,20 @@ func IsPublicHost(requestedHost string, publicDomains []string) bool {
 	return false
 }
 
-func RequestHostAllowed(requestedHost, sessionDomain string, defaultAllowedDomains []string) bool {
-	if HostAllowed(requestedHost, sessionDomain) {
-		return true
+// HostSuffixCandidates returns host suffixes from most specific to least (e.g. www.google.com, google.com).
+func HostSuffixCandidates(requestedHost string) []string {
+	host := NormalizeHost(requestedHost)
+	if host == "" {
+		return nil
 	}
-	for _, allowed := range defaultAllowedDomains {
-		if HostAllowed(requestedHost, allowed) {
-			return true
+	var out []string
+	for h := host; h != ""; {
+		out = append(out, h)
+		i := strings.Index(h, ".")
+		if i == -1 {
+			break
 		}
+		h = h[i+1:]
 	}
-	return false
+	return out
 }

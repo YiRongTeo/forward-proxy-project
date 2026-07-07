@@ -17,17 +17,17 @@ const valkeyMode = useSentinel(config.valkey)
   : `direct:${config.valkey.url}`;
 console.log(JSON.stringify({ msg: 'valkey configured', mode: valkeyMode }));
 
-const sessionStore = new SessionStore({ valkey: config.valkey });
+const sessionStore = new SessionStore({
+  valkey: config.valkey,
+  sessionsPrefix: config.valkeySessionsPrefix,
+});
 const allowlist = createAllowlist(config.allowedClientIps);
 
 const proxyOptions = {
   allowlist,
   trustProxyHeaders: config.trustProxyHeaders,
   sessionStore,
-  sessionHeader: config.sessionHeader,
-  requireSessionFromHeader: config.requireSessionFromHeader,
-  acceptSessionFromProxyAuth: config.acceptSessionFromProxyAuth,
-  defaultAllowedDomains: config.defaultAllowedDomains,
+  requireProxyAuth: config.requireProxyAuth,
   publicDomains: config.publicDomains,
   timeoutMs: config.proxyTimeoutMs,
 };

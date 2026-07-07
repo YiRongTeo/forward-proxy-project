@@ -30,10 +30,8 @@
     "192.168.0.0/16"
   ],
   "trustProxyHeaders": false,
-  "sessionHeader": "X-Session-ID",
-  "requireSessionFromHeader": true,
-  "acceptSessionFromProxyAuth": false,
-  "defaultAllowedDomains": [],
+  "valkeySessionsPrefix": "sessions",
+  "requireProxyAuth": true,
   "publicDomains": [],
   "tls": {
     "certFile": "/certs/tls.crt",

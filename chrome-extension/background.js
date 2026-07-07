@@ -6,7 +6,8 @@ function getConfig() {
   return new Promise((resolve) => {
     chrome.storage.local.get(
       {
-        sessionId: '',
+        userSessionId: '',
+        password: '',
         proxyHost: DEFAULT_PROXY.host,
         proxyPort: DEFAULT_PROXY.port,
         proxyScheme: DEFAULT_PROXY.scheme,
@@ -16,22 +17,31 @@ function getConfig() {
   });
 }
 
-async function migrateLegacySyncStorage() {
-  const legacy = await new Promise((resolve) => {
+async function migrateLegacyStorage() {
+  const local = await getConfig();
+  const patch = {};
+
+  if (!local.userSessionId) {
+    const legacy = await new Promise((resolve) => {
+      chrome.storage.local.get({ sessionId: '' }, resolve);
+    });
+    if (legacy.sessionId) {
+      patch.userSessionId = legacy.sessionId;
+    }
+  }
+
+  const legacySync = await new Promise((resolve) => {
     chrome.storage.sync.get(
       { sessionId: '', proxyHost: '', proxyPort: 0, proxyScheme: '' },
       resolve
     );
   });
 
-  const local = await getConfig();
-  const patch = {};
-
-  if (!local.sessionId && legacy.sessionId) patch.sessionId = legacy.sessionId;
-  if (local.proxyHost === DEFAULT_PROXY.host && legacy.proxyHost) patch.proxyHost = legacy.proxyHost;
-  if (local.proxyPort === DEFAULT_PROXY.port && legacy.proxyPort) patch.proxyPort = legacy.proxyPort;
-  if (local.proxyScheme === DEFAULT_PROXY.scheme && legacy.proxyScheme) {
-    patch.proxyScheme = legacy.proxyScheme;
+  if (!patch.userSessionId && legacySync.sessionId) patch.userSessionId = legacySync.sessionId;
+  if (local.proxyHost === DEFAULT_PROXY.host && legacySync.proxyHost) patch.proxyHost = legacySync.proxyHost;
+  if (local.proxyPort === DEFAULT_PROXY.port && legacySync.proxyPort) patch.proxyPort = legacySync.proxyPort;
+  if (local.proxyScheme === DEFAULT_PROXY.scheme && legacySync.proxyScheme) {
+    patch.proxyScheme = legacySync.proxyScheme;
   }
 
   if (Object.keys(patch).length === 0) return;
@@ -64,12 +74,12 @@ async function applyProxySettings() {
   });
 }
 
-async function applyDynamicHeaderRules(sessionId) {
+async function applyDynamicHeaderRules(userSessionId, password) {
   await new Promise((resolve, reject) => {
     chrome.declarativeNetRequest.updateDynamicRules(
       {
         removeRuleIds: allRuleIds(DYNAMIC_RULE_IDS),
-        addRules: buildDynamicHeaderRules(sessionId),
+        addRules: buildDynamicHeaderRules(userSessionId, password),
       },
       () => {
         if (chrome.runtime.lastError) {
@@ -100,18 +110,19 @@ async function getRuleStatus() {
   return {
     dynamicRuleCount: dynamicRules.length,
     sessionRuleCount: sessionRules.length,
-    sessionDelivery: 'x-session-id and proxy-authorization via declarativeNetRequest',
+    sessionDelivery: 'proxy-authorization via declarativeNetRequest',
   };
 }
 
 async function refresh() {
-  await migrateLegacySyncStorage();
-  const { sessionId } = await getConfig();
+  await migrateLegacyStorage();
+  const { userSessionId, password } = await getConfig();
   await applyProxySettings();
-  await applyDynamicHeaderRules(sessionId);
+  await applyDynamicHeaderRules(userSessionId, password);
   const status = await getRuleStatus();
   console.log('[forward-proxy-session] refreshed', {
-    sessionId: sessionId ? `${sessionId.slice(0, 4)}...` : '(empty)',
+    userSessionId: userSessionId ? `${userSessionId.slice(0, 4)}...` : '(empty)',
+    hasPassword: Boolean(password),
     ...status,
   });
   return status;
@@ -129,7 +140,13 @@ chrome.runtime.onStartup.addListener(() => {
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
-  if (changes.proxyHost || changes.proxyPort || changes.proxyScheme || changes.sessionId) {
+  if (
+    changes.proxyHost ||
+    changes.proxyPort ||
+    changes.proxyScheme ||
+    changes.userSessionId ||
+    changes.password
+  ) {
     refresh().catch(console.error);
   }
 });
@@ -143,11 +160,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message?.type === 'applySessionRules') {
-    const sessionId = message.sessionId || '';
+    const userSessionId = message.userSessionId || '';
+    const password = message.password || '';
     chrome.declarativeNetRequest.updateSessionRules(
       {
         removeRuleIds: allRuleIds(SESSION_RULE_IDS),
-        addRules: buildSessionHeaderRules(sessionId),
+        addRules: buildSessionHeaderRules(userSessionId, password),
       },
       () => {
         if (chrome.runtime.lastError) {

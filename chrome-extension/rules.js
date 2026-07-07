@@ -1,5 +1,3 @@
-const SESSION_HEADER = 'x-session-id';
-
 const ALL_RESOURCE_TYPES = [
   'main_frame',
   'sub_frame',
@@ -28,27 +26,26 @@ const SESSION_RULE_IDS = {
   http: 102,
 };
 
-function buildProxyAuthorization(sessionId) {
-  return `Basic ${btoa(`${sessionId}:session`)}`;
+function buildProxyAuthorization(userSessionId, password) {
+  return `Basic ${btoa(`${userSessionId}:${password}`)}`;
 }
 
-function buildRequestHeaders(sessionId) {
+function buildRequestHeaders(userSessionId, password) {
   return [
-    { header: SESSION_HEADER, operation: 'set', value: sessionId },
     {
       header: 'proxy-authorization',
       operation: 'set',
-      value: buildProxyAuthorization(sessionId),
+      value: buildProxyAuthorization(userSessionId, password),
     },
   ];
 }
 
-function buildHeaderRules(sessionId, ids) {
-  if (!sessionId) return [];
+function buildHeaderRules(userSessionId, password, ids) {
+  if (!userSessionId || !password) return [];
 
   const headerAction = {
     type: 'modifyHeaders',
-    requestHeaders: buildRequestHeaders(sessionId),
+    requestHeaders: buildRequestHeaders(userSessionId, password),
   };
 
   return [
@@ -73,12 +70,12 @@ function buildHeaderRules(sessionId, ids) {
   ];
 }
 
-function buildDynamicHeaderRules(sessionId) {
-  return buildHeaderRules(sessionId, DYNAMIC_RULE_IDS);
+function buildDynamicHeaderRules(userSessionId, password) {
+  return buildHeaderRules(userSessionId, password, DYNAMIC_RULE_IDS);
 }
 
-function buildSessionHeaderRules(sessionId) {
-  return buildHeaderRules(sessionId, SESSION_RULE_IDS);
+function buildSessionHeaderRules(userSessionId, password) {
+  return buildHeaderRules(userSessionId, password, SESSION_RULE_IDS);
 }
 
 function allRuleIds(ids) {
