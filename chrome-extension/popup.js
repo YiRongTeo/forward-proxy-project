@@ -1,4 +1,5 @@
-const sessionInput = document.getElementById('sessionId');
+const userSessionIdInput = document.getElementById('userSessionId');
+const passwordInput = document.getElementById('password');
 const statusEl = document.getElementById('status');
 const metaEl = document.getElementById('meta');
 
@@ -19,28 +20,30 @@ function loadStatus() {
   chrome.runtime.sendMessage({ type: 'getStatus' }, renderStatus);
 }
 
-chrome.storage.local.get({ sessionId: '' }, ({ sessionId }) => {
-  sessionInput.value = sessionId;
+chrome.storage.local.get({ userSessionId: '', password: '' }, ({ userSessionId, password }) => {
+  userSessionIdInput.value = userSessionId;
+  passwordInput.value = password;
   loadStatus();
 });
 
 document.getElementById('save').addEventListener('click', () => {
-  const sessionId = sessionInput.value.trim();
+  const userSessionId = userSessionIdInput.value.trim();
+  const password = passwordInput.value;
 
-  chrome.storage.local.set({ sessionId }, () => {
+  chrome.storage.local.set({ userSessionId, password }, () => {
     chrome.runtime.sendMessage(
-      { type: 'applySessionRules', sessionId },
+      { type: 'applySessionRules', userSessionId, password },
       (response) => {
         if (chrome.runtime.lastError || !response?.ok) {
           statusEl.textContent =
             response?.error ||
             chrome.runtime.lastError?.message ||
-            'Failed to apply session rules.';
+            'Failed to apply proxy credentials.';
           return;
         }
 
-        statusEl.textContent = sessionId
-          ? 'Saved. Session header rules applied.'
+        statusEl.textContent = userSessionId
+          ? 'Saved. Proxy credentials applied.'
           : 'Cleared.';
         renderStatus(response);
         setTimeout(() => {

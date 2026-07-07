@@ -28,16 +28,24 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(r.URL.Path, "/sessions/") && r.Method == http.MethodGet {
 		id := strings.TrimPrefix(r.URL.Path, "/sessions/")
 		id = strings.TrimSuffix(id, "/")
-		sess, err := s.Store.GetSession(context.Background(), id)
+		domains, err := s.Store.ListUserDomains(context.Background(), id)
 		if err != nil {
+			proxyutil.LogEvent(map[string]interface{}{
+				"event":         "admin_list_domains_failed",
+				"err":           err.Error(),
+				"userSessionId": id,
+			})
 			proxyutil.WriteJSON(w, http.StatusBadGateway, map[string]interface{}{"error": "internal_error"})
 			return
 		}
-		if sess == nil {
+		if len(domains) == 0 {
 			proxyutil.WriteJSON(w, http.StatusNotFound, map[string]interface{}{"error": "session_not_found"})
 			return
 		}
-		proxyutil.WriteJSON(w, http.StatusOK, map[string]interface{}{"id": id, "domain": sess.Domain, "createdAt": sess.CreatedAt, "metadata": sess.Metadata})
+		proxyutil.WriteJSON(w, http.StatusOK, map[string]interface{}{
+			"userSessionId": id,
+			"domains":       domains,
+		})
 		return
 	}
 

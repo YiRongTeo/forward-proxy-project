@@ -46,7 +46,7 @@ func main() {
 
 	tls := tlsconfig.Load(cfg.TLS)
 
-	store, err := session.NewStore(cfg.Valkey)
+	store, err := session.NewStore(cfg.Valkey, cfg.ValkeySessionsPrefix)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -58,15 +58,12 @@ func main() {
 	}
 
 	proxyCfg := &proxy.Config{
-		Allowlist:                  allow,
-		TrustProxyHeaders:          cfg.TrustProxyHeaders,
-		SessionStore:               store,
-		SessionHeader:              cfg.SessionHeader,
-		RequireSessionFromHeader:   cfg.RequireSessionFromHeader,
-		AcceptSessionFromProxyAuth: cfg.AcceptSessionFromProxyAuth,
-		DefaultAllowedDomains:      cfg.DefaultAllowedDomains,
-		PublicDomains:              cfg.PublicDomains,
-		Timeout:                    time.Duration(cfg.ProxyTimeoutMs) * time.Millisecond,
+		Allowlist:         allow,
+		TrustProxyHeaders: cfg.TrustProxyHeaders,
+		SessionStore:      store,
+		PublicDomains:     cfg.PublicDomains,
+		RequireProxyAuth:  cfg.RequireProxyAuth,
+		Timeout:           time.Duration(cfg.ProxyTimeoutMs) * time.Millisecond,
 	}
 
 	proxyPort := strconv.Itoa(cfg.ProxyPort)

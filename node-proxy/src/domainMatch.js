@@ -25,14 +25,23 @@ function isPublicHost(requestedHost, publicDomains) {
   return publicDomains.some((allowed) => hostAllowed(requestedHost, allowed));
 }
 
-function requestHostAllowed(requestedHost, sessionDomain, defaultAllowedDomains) {
-  if (hostAllowed(requestedHost, sessionDomain)) return true;
-  return defaultAllowedDomains.some((allowed) => hostAllowed(requestedHost, allowed));
+function hostSuffixCandidates(requestedHost) {
+  const host = normalizeHost(requestedHost);
+  if (!host) return [];
+
+  const out = [];
+  for (let h = host; h; ) {
+    out.push(h);
+    const idx = h.indexOf('.');
+    if (idx === -1) break;
+    h = h.slice(idx + 1);
+  }
+  return out;
 }
 
 module.exports = {
   hostAllowed,
   normalizeHost,
   isPublicHost,
-  requestHostAllowed,
+  hostSuffixCandidates,
 };
