@@ -1,45 +1,40 @@
 package proxyutil
 
 import (
+	"encoding/base64"
 	"net/http"
 	"testing"
 )
 
-func TestSessionIDFromHeader(t *testing.T) {
-	req, _ := http.NewRequest(http.MethodGet, "http://example.com", nil)
-	req.Header.Set("X-Session-ID", "session1234")
-	req.Header.Set("Proxy-Authorization", "Basic c2Vzc2lvbjk5OTk6c2Vzc2lvbg==")
-
-	if got := SessionIDFromHeader(req, "X-Session-ID"); got != "session1234" {
-		t.Fatalf("SessionIDFromHeader = %q, want session1234", got)
-	}
-}
-
-func TestSessionIDFromProxyAuth(t *testing.T) {
+func TestProxyAuthCredentials(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodConnect, "https://example.com", nil)
-	req.Header.Set("Proxy-Authorization", "Basic c2Vzc2lvbjk5OTk6c2Vzc2lvbg==")
+	req.Header.Set("Proxy-Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte("alice:s3cret")))
 
-	if got := SessionIDFromProxyAuth(req); got != "session9999" {
-		t.Fatalf("SessionIDFromProxyAuth = %q, want session9999", got)
+	user, pass, ok := ProxyAuthCredentials(req)
+	if !ok {
+		t.Fatal("expected credentials")
+	}
+	if user != "alice" || pass != "s3cret" {
+		t.Fatalf("got %q:%q", user, pass)
 	}
 }
 
-func TestResolveSessionID(t *testing.T) {
+func TestProxyAuthCredentialsMissingPassword(t *testing.T) {
+	req, _ := http.NewRequest(http.MethodConnect, "https://example.com", nil)
+	req.Header.Set("Proxy-Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte("alice")))
+
+	if _, _, ok := ProxyAuthCredentials(req); ok {
+		t.Fatal("expected missing password to fail")
+	}
+}
+
+func TestHasProxyAuth(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodGet, "http://example.com", nil)
-	req.Header.Set("X-Session-ID", "session1234")
-	req.Header.Set("Proxy-Authorization", "Basic c2Vzc2lvbjk5OTk6c2Vzc2lvbg==")
-
-	if got := ResolveSessionID(req, "X-Session-ID", false); got != "session1234" {
-		t.Fatalf("ResolveSessionID should prefer header, got %q", got)
+	if HasProxyAuth(req) {
+		t.Fatal("expected no proxy auth")
 	}
-
-	req2, _ := http.NewRequest(http.MethodConnect, "https://example.com", nil)
-	req2.Header.Set("Proxy-Authorization", "Basic c2Vzc2lvbjk5OTk6c2Vzc2lvbg==")
-
-	if got := ResolveSessionID(req2, "X-Session-ID", false); got != "" {
-		t.Fatalf("ResolveSessionID should ignore proxy auth when disabled, got %q", got)
-	}
-	if got := ResolveSessionID(req2, "X-Session-ID", true); got != "session9999" {
-		t.Fatalf("ResolveSessionID should read proxy auth when enabled, got %q", got)
+	req.Header.Set("Proxy-Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte("alice:s3cret")))
+	if !HasProxyAuth(req) {
+		t.Fatal("expected proxy auth")
 	}
 }

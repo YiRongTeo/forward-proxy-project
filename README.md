@@ -1,35 +1,44 @@
-# Forward Proxy with Valkey Domain-Bound Sessions
+# Forward Proxy with Valkey Domain-Key Auth
 
-Dual HTTP forward proxy implementation (**Node.js** and **Go**) with Valkey-backed session-to-domain enforcement, plus a **Chrome extension** that injects `X-Session-ID` and configures the browser proxy.
+Dual HTTP forward proxy implementation (**Node.js** and **Go**) with Valkey-backed domain entitlements, plus a **Chrome extension** that supplies fixed proxy credentials on 407 challenges.
 
 ## Overview
 
-Each session ID maps to exactly one allowed domain in Valkey. Example: `session1234` → `google.com` allows `google.com` and subdomains, but blocks `facebook.com`.
+Each allowed domain is a Valkey key. **Key existence** grants access; the value is ignored (use a placeholder like `"1"`):
+
+| Key | Value |
+|-----|-------|
+| `sessions:{user_session_id}:{domain}` | any (ignored) |
+
+Example: `sessions:alice:google.com` → `1` allows user `alice` to reach `google.com` and subdomains (`www.google.com` matches key suffix `google.com`).
+
+The proxy reads the **username** from `Proxy-Authorization: Basic {user}:{password}`. The password is not validated against Valkey — it exists only for Chrome's proxy auth handshake and credential cache.
 
 Every proxied request is gated by:
 
 1. **Client IP allowlist** (`allowedClientIps`)
-2. **Public domains** (`publicDomains`) — optional bypass: no session required for listed hosts (still IP-checked)
-3. **Session credential** (`requireSessionFromHeader: true`) — session ID from `sessionHeader` and/or `Proxy-Authorization` when `acceptSessionFromProxyAuth: true`, then Valkey lookup and domain match (plus `defaultAllowedDomains`)
-4. **Open relay** (`requireSessionFromHeader: false`) — forward any domain after IP check only (use with caution)
+2. **Public domains** (`publicDomains`) — optional bypass after IP check
+3. **Proxy auth** (`requireProxyAuth: true`) — username + domain key existence in Valkey
+4. **Open relay** (`requireProxyAuth: false`) — forward any domain after IP check only (use with caution)
 
-The proxy **never** returns `407 Proxy Authentication Required`. Missing credentials yield **403** instead, so browsers do not cache proxy login and users can change the session ID freely.
+Missing `Proxy-Authorization` returns **407** so Chrome can cache credentials. Wrong domain or IP blocked returns **403**.
 
 ```mermaid
 flowchart LR
   Chrome --> Extension
-  Extension -->|"proxy + X-Session-ID"| NodeProxy
-  Extension -->|"proxy + X-Session-ID"| GoProxy
-  NodeProxy --> Valkey
+  Extension -->|"407 challenge"| GoProxy
+  Extension -->|"407 challenge"| NodeProxy
   GoProxy --> Valkey
-  NodeProxy --> ExternalSite
+  NodeProxy --> Valkey
   GoProxy --> ExternalSite
+  NodeProxy --> ExternalSite
 ```
 
 ## Quick Start
 
 ```bash
 docker compose up --build
+./benchmarks/seed-sessions.sh
 ```
 
 | Service | Ports | Role |
@@ -38,178 +47,98 @@ docker compose up --build
 | node-proxy | 8080, 3001 | Node forward proxy + admin API |
 | go-proxy | 8081, 9001 | Go forward proxy + admin API |
 
-Copy and edit config files as needed:
+## Create domain keys
 
-```bash
-# Defaults: config/node-proxy.json, config/go-proxy.json
-```
-
-## Create a Session
-
-Proxies are **read-only** for sessions. Create and revoke sessions directly in Valkey (not via the proxy admin API):
+Proxies are **read-only**. Create keys directly in Valkey:
 
 ```bash
 ./benchmarks/seed-sessions.sh
 ```
 
-Or manually with `valkey-cli`:
+Or manually:
 
 ```bash
-valkey-cli SET 'session:session1234' \
-  '{"domain":"google.com","createdAt":"2026-07-01T12:00:00Z","metadata":{}}' \
-  EX 3600
+valkey-cli SET 'sessions:alice:google.com' '1' EX 3600
+valkey-cli SET 'sessions:alice:example.com' '1' EX 3600
 ```
 
-The proxy admin API only supports **read** operations: `GET /health` and `GET /sessions/:id`. `POST`/`DELETE` return `405`.
+Single key:
+
+```bash
+./benchmarks/seed-one.sh alice google.com 1 config/go-proxy.json
+```
+
+Admin API (read-only): `GET /health`, `GET /sessions/{userSessionId}` returns `{ userSessionId, domains: [...] }`.
 
 ## Chrome Extension Setup
 
-1. Open `chrome://extensions`
-2. Enable **Developer mode**
-3. **Load unpacked** → select [`chrome-extension/`](chrome-extension/)
-4. Open extension **Options** → set scheme (`http` or `https`), host (hostname only — no `http://`), port `8080` (Node) or `8081` (Go). Use **Test proxy port** to verify reachability.
-5. Open extension **Popup** → enter session ID `session1234` → Save
-6. Browse to `https://google.com` (allowed) or `https://facebook.com` (blocked with 403)
+1. Open `chrome://extensions` → **Load unpacked** → [`chrome-extension/`](chrome-extension/)
+2. **Options** → proxy host/port/scheme (Go=8081, Node=8080)
+3. **Popup** → enter **User session ID** + **Password** → Save
+4. Browse allowed domains (keys must exist in Valkey)
 
-The extension:
-
-- Sets Chrome's forward proxy via `chrome.proxy.settings`
-- Injects the session ID as **`x-session-id`** and **`Proxy-Authorization`** (Basic `sessionId:session`) via declarativeNetRequest — no proxy login dialog and no 407 challenge
-- Applies **session rules on Save** (user gesture)
-
-**Chrome HTTPS CONNECT:** Enable `acceptSessionFromProxyAuth: true` on the proxy so CONNECT tunnels can use the `Proxy-Authorization` header the extension injects. Plain `x-session-id` alone is not sent on CONNECT. The proxy still never issues 407 — missing credentials return 403.
+The extension responds to proxy **407** challenges via `webRequest.onAuthRequired`, supplying stored credentials. Chrome caches them for subsequent requests.
 
 ## Manual curl Tests
 
-Allowed (session bound to `example.com`):
+Missing credentials → 407:
 
 ```bash
-curl -x http://127.0.0.1:8080 \
-  -H 'X-Session-ID: session5678' \
-  http://example.com/ -I
+curl -v -x http://127.0.0.1:8081 https://google.com -o /dev/null
+# 407 Proxy Authentication Required
 ```
 
-Denied (domain mismatch):
+Allowed (any password when key exists):
 
 ```bash
-curl -x http://127.0.0.1:8080 \
-  -H 'X-Session-ID: session1234' \
-  http://facebook.com/ -I
-# HTTP/1.1 403 Forbidden
+curl -v -x http://127.0.0.1:8081 -U 'alice:anything' https://google.com -o /dev/null
+curl -x http://127.0.0.1:8080 -U 'alice:x' http://example.com/ -I
 ```
 
-HTTPS CONNECT tunnel (header mode):
+Denied (no key for domain):
 
 ```bash
-curl -v -x http://127.0.0.1:8081 \
-  -H 'X-Session-ID: session1234' \
-  https://google.com -o /dev/null
+curl -v -x http://127.0.0.1:8081 -U 'alice:x' https://facebook.com -o /dev/null
+# 403 domain_not_allowed
 ```
 
-HTTPS CONNECT tunnel (proxy auth mode — use with `acceptSessionFromProxyAuth: true`):
+Open relay:
 
 ```bash
-curl -v -x http://127.0.0.1:8081 \
-  -U 'session1234:session' \
-  https://google.com -o /dev/null
-```
-
-Open relay (no session header required):
-
-```bash
-# requireSessionFromHeader: false in config
+# requireProxyAuth: false in config
 curl -v -x http://127.0.0.1:8081 https://google.com -o /dev/null
 ```
 
-## Domain Matching Rules
+## Domain matching
 
-| Requested host | Session domain | Result |
-|----------------|----------------|--------|
-| `google.com` | `google.com` | Allow |
-| `www.google.com` | `google.com` | Allow |
-| `facebook.com` | `google.com` | Deny |
-| `notgoogle.com` | `google.com` | Deny |
+For request host `www.google.com`, the proxy checks Valkey keys in order:
 
-Matching is suffix-safe: host must equal the domain or end with `.` + domain.
+1. `sessions:{user}:www.google.com`
+2. `sessions:{user}:google.com`
+3. `sessions:{user}:com`
 
-## TLS (when available)
-
-Both proxies read TLS paths from the config file. When `tls.certFile` and `tls.keyFile` point to readable files, proxy and admin listeners use HTTPS; otherwise they use HTTP.
-
-```json
-"tls": {
-  "certFile": "/certs/tls.crt",
-  "keyFile": "/certs/tls.key"
-}
-```
-
-Place certificates in [`certs/`](certs/) and update the config paths. Use `https` proxy scheme in the Chrome extension when TLS is enabled.
-
-## Admin API (read-only)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/health` | Health check (includes `tls: true/false`) |
-| `GET` | `/sessions/:id` | Read session from Valkey |
-| `POST`/`DELETE`/etc. | `/sessions` | **405** — sessions cannot be modified via proxy |
+First existing key wins.
 
 ## Configuration
 
-Both proxies load settings from a **JSON config file** (not environment variables).
-
-| File | Used by | Default ports |
-|------|---------|---------------|
-| [`config/node-proxy.json`](config/node-proxy.json) | Node proxy | 8080 / 3001 |
-| [`config/go-proxy.json`](config/go-proxy.json) | Go proxy | 8081 / 9001 |
-
-Docker Compose mounts each file to `/config/config.json` inside the container.
-
-**Example** (`config/node-proxy.json`):
+**Example** (`config/go-proxy.json`):
 
 ```json
 {
   "valkeyUrl": "redis://valkey:6379",
-  "proxyPort": 8080,
-  "adminPort": 3001,
-  "proxyTimeoutMs": 30000,
-  "allowedClientIps": ["127.0.0.1", "::1", "172.16.0.0/12"],
-  "trustProxyHeaders": false,
-  "sessionHeader": "X-Session-ID",
-  "requireSessionFromHeader": true,
-  "acceptSessionFromProxyAuth": true,
-  "defaultAllowedDomains": [],
+  "valkeySessionsPrefix": "sessions",
+  "requireProxyAuth": true,
   "publicDomains": [],
-  "tls": {
-    "certFile": "/certs/tls.crt",
-    "keyFile": "/certs/tls.key"
-  }
+  "proxyPort": 8081,
+  "adminPort": 9001
 }
 ```
 
 | Field | Description |
 |-------|-------------|
-| `requireSessionFromHeader` | When `true` (default), require a session credential and enforce Valkey domain rules. When `false`, open relay — forward any domain after IP allowlist only. |
-| `acceptSessionFromProxyAuth` | When `true`, read session ID from `Proxy-Authorization` Basic username (after `sessionHeader`). Default `false`. Never triggers 407 — missing credentials return 403. |
-| `sessionHeader` | Header name for session ID (default `X-Session-ID`). Checked before proxy auth. |
-| `publicDomains` | Hosts that skip session auth after IP check (e.g. `["example.com"]`). Logs `authMode: "public"`. |
-| `defaultAllowedDomains` | Extra domains allowed for authenticated sessions beyond each session's Valkey `domain`. |
-
-**Valkey TLS** (`valkeyTls`):
-
-```json
-"valkeyTls": {
-  "enabled": true,
-  "caFile": "/certs/valkey-ca.crt",
-  "certFile": "",
-  "keyFile": "",
-  "serverName": "valkey.internal",
-  "insecureSkipVerify": false
-}
-```
-
-Applies to direct Valkey and Sentinel connections.
-
-**RHEL / systemd:** see [`go-proxy/deploy/README.md`](go-proxy/deploy/README.md). Build with `make build`, install with `sudo make install`.
+| `valkeySessionsPrefix` | Key prefix (default `sessions`) |
+| `requireProxyAuth` | When `true`, require `Proxy-Authorization` username and matching domain key. When `false`, open relay after IP check. |
+| `publicDomains` | Hosts that skip auth after IP check (`authMode: "public"`) |
 
 **Local run:**
 
@@ -218,44 +147,15 @@ node node-proxy/src/index.js --config config/node-proxy.json
 go run ./go-proxy/cmd/proxy -config config/go-proxy.json
 ```
 
-Config lookup order when `--config` / `-config` is omitted:
+**RHEL / systemd:** [`go-proxy/deploy/README.md`](go-proxy/deploy/README.md)
 
-1. `/config/config.json` (Docker default)
-2. `./config.json`
-3. `./config/node-proxy.json` or `./config/go-proxy.json`
+## Error codes
 
-### Valkey Sentinel
-
-When `valkeySentinel` is set with `masterName` and `sentinels`, both proxies connect via **Sentinel failover** instead of a direct `valkeyUrl`. The URL is still used as a fallback label and for tooling (e.g. session seeding).
-
-```json
-{
-  "valkeyUrl": "redis://valkey-master:6379",
-  "valkeySentinel": {
-    "masterName": "valkey-master",
-    "sentinels": [
-      "sentinel-1:26379",
-      "sentinel-2:26379",
-      "sentinel-3:26379"
-    ],
-    "password": "",
-    "sentinelPassword": "",
-    "db": 0
-  }
-}
-```
-
-| Field | Description |
-|-------|-------------|
-| `masterName` | Sentinel-monitored master name |
-| `sentinels` | Sentinel addresses (`host:port`, default port 26379) |
-| `password` | Valkey master password (optional) |
-| `sentinelPassword` | Sentinel auth password (optional) |
-| `db` | Database index (default `0`) |
-
-Full examples: [`config/node-proxy.sentinel.example.json`](config/node-proxy.sentinel.example.json), [`config/go-proxy.sentinel.example.json`](config/go-proxy.sentinel.example.json).
-
-On startup, logs include the active mode, e.g. `{"msg":"valkey configured","mode":"sentinel:valkey-master"}`.
+| Code | Meaning |
+|------|---------|
+| `407` | `missing_credentials` — no `Proxy-Authorization` header |
+| `403` | `domain_not_allowed` or IP blocked |
+| `502` | Upstream unreachable or Valkey error |
 
 ## Benchmarks
 
@@ -265,42 +165,4 @@ chmod +x benchmarks/*.sh
 ./benchmarks/run.sh
 ```
 
-Requires [hey](https://github.com/rakyll/hey). Results template: [`benchmarks/results.md`](benchmarks/results.md).
-
-Compare Node (`8080`) vs Go (`8081`) using RPS, p99 latency, and 403 rates on denied domains.
-
-## Error Codes
-
-| Code | Meaning |
-|------|---------|
-| `400` | Invalid request URL |
-| `403` | IP not allowlisted, missing session header, or domain not allowed |
-| `404` | Session not found in Valkey |
-| `502` | Upstream unreachable or Valkey error |
-| `504` | Upstream timeout |
-
-## Project Layout
-
-```
-├── config/
-│   ├── node-proxy.json                  # Node proxy config (direct Valkey)
-│   ├── go-proxy.json                    # Go proxy config (direct Valkey)
-│   ├── node-proxy.sentinel.example.json # Sentinel example (Node)
-│   └── go-proxy.sentinel.example.json   # Sentinel example (Go)
-├── docker-compose.yml
-├── chrome-extension/     # Chrome MV3 extension
-├── node-proxy/           # Node.js forward proxy
-├── go-proxy/             # Go forward proxy
-└── benchmarks/           # Load test scripts
-```
-
-## Node vs Go Comparison
-
-Run both proxies under the same Valkey instance and use identical session IDs. The benchmark script exercises the same allowed/denied hosts against both implementations. Compare:
-
-- Requests per second
-- p50 / p95 / p99 latency
-- Memory (`docker stats`)
-- 403 rate on domain violations
-
-Both implementations share the same authorization order, domain matching logic, Valkey schema, and error response format for a fair comparison.
+See [`benchmarks/results.md`](benchmarks/results.md).

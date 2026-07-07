@@ -36,20 +36,18 @@ type Valkey struct {
 }
 
 type File struct {
-	ValkeyURL                  string          `json:"valkeyUrl"`
-	ValkeySentinel             *ValkeySentinel `json:"valkeySentinel"`
-	ValkeyTLS                  ValkeyTLS       `json:"valkeyTls"`
-	ProxyPort                  int             `json:"proxyPort"`
-	AdminPort                  int             `json:"adminPort"`
-	ProxyTimeoutMs             int             `json:"proxyTimeoutMs"`
-	AllowedClientIps           []string        `json:"allowedClientIps"`
-	DefaultAllowedDomains      []string        `json:"defaultAllowedDomains"`
-	PublicDomains              []string        `json:"publicDomains"`
-	TrustProxyHeaders          bool            `json:"trustProxyHeaders"`
-	SessionHeader              string          `json:"sessionHeader"`
-	RequireSessionFromHeader   bool            `json:"requireSessionFromHeader"`
-	AcceptSessionFromProxyAuth bool            `json:"acceptSessionFromProxyAuth"`
-	TLS                        TLS             `json:"tls"`
+	ValkeyURL            string          `json:"valkeyUrl"`
+	ValkeySentinel       *ValkeySentinel `json:"valkeySentinel"`
+	ValkeyTLS            ValkeyTLS       `json:"valkeyTls"`
+	ProxyPort            int             `json:"proxyPort"`
+	AdminPort            int             `json:"adminPort"`
+	ProxyTimeoutMs       int             `json:"proxyTimeoutMs"`
+	AllowedClientIps     []string        `json:"allowedClientIps"`
+	PublicDomains        []string        `json:"publicDomains"`
+	TrustProxyHeaders    bool            `json:"trustProxyHeaders"`
+	ValkeySessionsPrefix string          `json:"valkeySessionsPrefix"`
+	RequireProxyAuth     bool            `json:"requireProxyAuth"`
+	TLS                  TLS             `json:"tls"`
 }
 
 type Loaded struct {
@@ -66,17 +64,15 @@ func (v Valkey) UseSentinel() bool {
 
 func defaultFile() File {
 	return File{
-		ValkeyURL:         "redis://127.0.0.1:6379",
-		ProxyPort:         8081,
-		AdminPort:         9001,
-		ProxyTimeoutMs:    30000,
-		AllowedClientIps:           []string{"127.0.0.1", "::1"},
-		DefaultAllowedDomains:      []string{},
-		PublicDomains:              []string{},
-		TrustProxyHeaders:          false,
-		SessionHeader:              "X-Session-ID",
-		RequireSessionFromHeader:   true,
-		AcceptSessionFromProxyAuth: false,
+		ValkeyURL:            "redis://127.0.0.1:6379",
+		ProxyPort:            8081,
+		AdminPort:            9001,
+		ProxyTimeoutMs:       30000,
+		AllowedClientIps:     []string{"127.0.0.1", "::1"},
+		PublicDomains:        []string{},
+		TrustProxyHeaders:    false,
+		ValkeySessionsPrefix: "sessions",
+		RequireProxyAuth:     true,
 	}
 }
 
@@ -138,19 +134,16 @@ func Load(path string) (*Loaded, error) {
 	if len(cfg.AllowedClientIps) == 0 {
 		cfg.AllowedClientIps = defaultFile().AllowedClientIps
 	}
-	if cfg.DefaultAllowedDomains == nil {
-		cfg.DefaultAllowedDomains = defaultFile().DefaultAllowedDomains
-	}
 	if cfg.PublicDomains == nil {
 		cfg.PublicDomains = defaultFile().PublicDomains
 	}
-	if cfg.SessionHeader == "" {
-		cfg.SessionHeader = defaultFile().SessionHeader
+	if cfg.ValkeySessionsPrefix == "" {
+		cfg.ValkeySessionsPrefix = defaultFile().ValkeySessionsPrefix
 	}
 	var rawFields map[string]json.RawMessage
 	if err := json.Unmarshal(rawBytes, &rawFields); err == nil {
-		if _, ok := rawFields["requireSessionFromHeader"]; !ok {
-			cfg.RequireSessionFromHeader = true
+		if _, ok := rawFields["requireProxyAuth"]; !ok {
+			cfg.RequireProxyAuth = true
 		}
 	}
 

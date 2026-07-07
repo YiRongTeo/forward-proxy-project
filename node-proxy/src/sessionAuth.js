@@ -1,50 +1,26 @@
 'use strict';
 
-function getSessionIdFromHeader(req, sessionHeader) {
-  const names = [
-    sessionHeader.toLowerCase(),
-    'x-session-id',
-  ];
-
-  for (const name of names) {
-    const headerValue = req.headers[name];
-    if (headerValue) {
-      return (Array.isArray(headerValue) ? headerValue[0] : headerValue).trim();
-    }
-  }
-
-  return '';
-}
-
-function getSessionIdFromProxyAuth(req) {
+function parseProxyAuth(req) {
   const proxyAuth = req.headers['proxy-authorization'];
-  if (proxyAuth && proxyAuth.startsWith('Basic ')) {
-    try {
-      const decoded = Buffer.from(proxyAuth.slice(6), 'base64').toString('utf8');
-      const username = decoded.split(':')[0];
-      if (username) return username.trim();
-    } catch {
-      // ignore malformed auth header
-    }
+  if (!proxyAuth || !proxyAuth.startsWith('Basic ')) {
+    return null;
   }
 
-  return '';
+  try {
+    const decoded = Buffer.from(proxyAuth.slice(6), 'base64').toString('utf8');
+    const idx = decoded.indexOf(':');
+    if (idx === -1) return null;
+    const username = decoded.slice(0, idx).trim();
+    const password = decoded.slice(idx + 1);
+    if (!username) return null;
+    return { userSessionId: username, password };
+  } catch {
+    return null;
+  }
 }
 
-function resolveSessionId(req, sessionHeader, acceptProxyAuth) {
-  const fromHeader = getSessionIdFromHeader(req, sessionHeader);
-  if (fromHeader) return fromHeader;
-  if (acceptProxyAuth) return getSessionIdFromProxyAuth(req);
-  return '';
+function hasProxyAuth(req) {
+  return parseProxyAuth(req) !== null;
 }
 
-function getSessionId(req, sessionHeader) {
-  return resolveSessionId(req, sessionHeader, true);
-}
-
-module.exports = {
-  getSessionId,
-  getSessionIdFromHeader,
-  getSessionIdFromProxyAuth,
-  resolveSessionId,
-};
+module.exports = { parseProxyAuth, hasProxyAuth };

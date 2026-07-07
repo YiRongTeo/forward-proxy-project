@@ -15,8 +15,10 @@ seed_load_config() {
     VALKEY_TLS_CA="$(jq -r '.valkeyTls.caFile // ""' "$CONFIG_FILE")"
     VALKEY_TLS_CERT="$(jq -r '.valkeyTls.certFile // ""' "$CONFIG_FILE")"
     VALKEY_TLS_KEY="$(jq -r '.valkeyTls.keyFile // ""' "$CONFIG_FILE")"
+    SESSIONS_PREFIX="$(jq -r '.valkeySessionsPrefix // "sessions"' "$CONFIG_FILE")"
   else
     VALKEY_URL="${VALKEY_URL:-redis://localhost:6379}"
+    SESSIONS_PREFIX="${SESSIONS_PREFIX:-sessions}"
   fi
 
   VALKEY_HOST="${VALKEY_HOST:-localhost}"
@@ -51,16 +53,12 @@ seed_run_cli() {
   fi
 }
 
-seed_session() {
-  local id="$1"
+seed_user_domain() {
+  local user_session_id="$1"
   local domain="$2"
-  local created_at
-  created_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-  local payload
-  payload=$(printf '{"domain":"%s","createdAt":"%s","metadata":{}}' "$domain" "$created_at")
+  local password="$3"
 
-  printf '%s' "$payload" | seed_run_cli -x SET "session:${id}" EX "$TTL"
+  printf '%s' "$password" | seed_run_cli -x SET "${SESSIONS_PREFIX}:${user_session_id}:${domain}" EX "$TTL"
 
-  echo "Seeded session:${id} -> ${domain} (TTL ${TTL}s)"
-  echo "Stored value: $payload"
+  echo "Seeded ${SESSIONS_PREFIX}:${user_session_id}:${domain} (value ignored, TTL ${TTL}s)"
 }

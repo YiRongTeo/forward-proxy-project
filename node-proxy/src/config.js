@@ -21,10 +21,8 @@ const DEFAULTS = {
   proxyTimeoutMs: 30000,
   allowedClientIps: ['127.0.0.1', '::1'],
   trustProxyHeaders: false,
-  sessionHeader: 'X-Session-ID',
-  requireSessionFromHeader: true,
-  acceptSessionFromProxyAuth: false,
-  defaultAllowedDomains: [],
+  valkeySessionsPrefix: 'sessions',
+  requireProxyAuth: true,
   publicDomains: [],
   tls: {
     certFile: '',
@@ -99,20 +97,6 @@ function loadConfig(configPath) {
     ? parsed.allowedClientIps
     : DEFAULTS.allowedClientIps;
 
-  const requireSessionFromHeader =
-    parsed.requireSessionFromHeader !== undefined
-      ? Boolean(parsed.requireSessionFromHeader)
-      : DEFAULTS.requireSessionFromHeader;
-
-  const acceptSessionFromProxyAuth =
-    parsed.acceptSessionFromProxyAuth !== undefined
-      ? Boolean(parsed.acceptSessionFromProxyAuth)
-      : DEFAULTS.acceptSessionFromProxyAuth;
-
-  const defaultAllowedDomains = Array.isArray(parsed.defaultAllowedDomains)
-    ? parsed.defaultAllowedDomains.map(String)
-    : DEFAULTS.defaultAllowedDomains;
-
   const publicDomains = Array.isArray(parsed.publicDomains)
     ? parsed.publicDomains.map(String)
     : DEFAULTS.publicDomains;
@@ -125,10 +109,11 @@ function loadConfig(configPath) {
     proxyTimeoutMs: Number(parsed.proxyTimeoutMs || DEFAULTS.proxyTimeoutMs),
     allowedClientIps,
     trustProxyHeaders: Boolean(parsed.trustProxyHeaders),
-    sessionHeader: parsed.sessionHeader || DEFAULTS.sessionHeader,
-    requireSessionFromHeader,
-    acceptSessionFromProxyAuth,
-    defaultAllowedDomains,
+    valkeySessionsPrefix: parsed.valkeySessionsPrefix || DEFAULTS.valkeySessionsPrefix,
+    requireProxyAuth:
+      parsed.requireProxyAuth !== undefined
+        ? Boolean(parsed.requireProxyAuth)
+        : DEFAULTS.requireProxyAuth,
     publicDomains,
     tls: {
       certFile: parsed.tls?.certFile || '',

@@ -1,6 +1,9 @@
 package domain
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestIsPublicHost(t *testing.T) {
 	public := []string{"example.com", "internal.corp"}
@@ -24,16 +27,10 @@ func TestIsPublicHost(t *testing.T) {
 	}
 }
 
-func TestRequestHostAllowed(t *testing.T) {
-	defaults := []string{"updates.corp"}
-
-	if !RequestHostAllowed("www.google.com", "google.com", defaults) {
-		t.Fatal("expected session domain match")
-	}
-	if !RequestHostAllowed("pkg.updates.corp", "google.com", defaults) {
-		t.Fatal("expected default allowed domain match")
-	}
-	if RequestHostAllowed("facebook.com", "google.com", defaults) {
-		t.Fatal("expected domain mismatch to be denied")
+func TestHostSuffixCandidates(t *testing.T) {
+	got := HostSuffixCandidates("www.google.com")
+	want := []string{"www.google.com", "google.com", "com"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("HostSuffixCandidates = %v, want %v", got, want)
 	}
 }
