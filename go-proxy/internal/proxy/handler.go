@@ -167,7 +167,10 @@ func (c *Config) HandleConnect(w http.ResponseWriter, r *http.Request) {
 
 	if !auth.ok {
 		if auth.authRequired {
-			_ = proxyutil.WriteConnectProxyAuthRequiredRaw(clientConn)
+			_ = proxyutil.WriteRawResponse(clientConn, http.StatusProxyAuthRequired, "Proxy Authentication Required", map[string]string{
+				"Proxy-Authenticate": `Basic realm="forward-proxy"`,
+				"Content-Length":     "0",
+			}, nil)
 		} else {
 			body := map[string]interface{}{
 				"error":         auth.errorCode,
