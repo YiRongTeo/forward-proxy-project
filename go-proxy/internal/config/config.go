@@ -36,18 +36,24 @@ type Valkey struct {
 }
 
 type File struct {
-	ValkeyURL            string          `json:"valkeyUrl"`
-	ValkeySentinel       *ValkeySentinel `json:"valkeySentinel"`
-	ValkeyTLS            ValkeyTLS       `json:"valkeyTls"`
-	ProxyPort            int             `json:"proxyPort"`
-	AdminPort            int             `json:"adminPort"`
-	ProxyTimeoutMs       int             `json:"proxyTimeoutMs"`
-	AllowedClientIps     []string        `json:"allowedClientIps"`
-	PublicDomains        []string        `json:"publicDomains"`
-	TrustProxyHeaders    bool            `json:"trustProxyHeaders"`
-	ValkeySessionsPrefix string          `json:"valkeySessionsPrefix"`
-	RequireProxyAuth     bool            `json:"requireProxyAuth"`
-	TLS                  TLS             `json:"tls"`
+	ValkeyURL                 string          `json:"valkeyUrl"`
+	ValkeySentinel            *ValkeySentinel `json:"valkeySentinel"`
+	ValkeyTLS                 ValkeyTLS       `json:"valkeyTls"`
+	ProxyPort                 int             `json:"proxyPort"`
+	AdminPort                 int             `json:"adminPort"`
+	ProxyTimeoutMs            int             `json:"proxyTimeoutMs"`
+	ValkeyTimeoutMs           int             `json:"valkeyTimeoutMs"`
+	SessionCachePositiveTtlMs int             `json:"sessionCachePositiveTtlMs"`
+	SessionCacheNegativeTtlMs int             `json:"sessionCacheNegativeTtlMs"`
+	ValkeyPoolSize            int             `json:"valkeyPoolSize"`
+	ValkeyMinIdleConns        int             `json:"valkeyMinIdleConns"`
+	ValkeyPoolTimeoutMs       int             `json:"valkeyPoolTimeoutMs"`
+	AllowedClientIps          []string        `json:"allowedClientIps"`
+	PublicDomains             []string        `json:"publicDomains"`
+	TrustProxyHeaders         bool            `json:"trustProxyHeaders"`
+	ValkeySessionsPrefix      string          `json:"valkeySessionsPrefix"`
+	RequireProxyAuth          bool            `json:"requireProxyAuth"`
+	TLS                       TLS             `json:"tls"`
 }
 
 type Loaded struct {
@@ -64,15 +70,21 @@ func (v Valkey) UseSentinel() bool {
 
 func defaultFile() File {
 	return File{
-		ValkeyURL:            "redis://127.0.0.1:6379",
-		ProxyPort:            8081,
-		AdminPort:            9001,
-		ProxyTimeoutMs:       30000,
-		AllowedClientIps:     []string{"127.0.0.1", "::1"},
-		PublicDomains:        []string{},
-		TrustProxyHeaders:    false,
-		ValkeySessionsPrefix: "sessions",
-		RequireProxyAuth:     true,
+		ValkeyURL:                 "redis://127.0.0.1:6379",
+		ProxyPort:                 8081,
+		AdminPort:                 9001,
+		ProxyTimeoutMs:            30000,
+		ValkeyTimeoutMs:           2000,
+		SessionCachePositiveTtlMs: 30000,
+		SessionCacheNegativeTtlMs: 5000,
+		ValkeyPoolSize:            50,
+		ValkeyMinIdleConns:        10,
+		ValkeyPoolTimeoutMs:       2000,
+		AllowedClientIps:          []string{"127.0.0.1", "::1"},
+		PublicDomains:             []string{},
+		TrustProxyHeaders:         false,
+		ValkeySessionsPrefix:      "sessions",
+		RequireProxyAuth:          true,
 	}
 }
 
@@ -130,6 +142,24 @@ func Load(path string) (*Loaded, error) {
 	}
 	if cfg.ProxyTimeoutMs == 0 {
 		cfg.ProxyTimeoutMs = defaultFile().ProxyTimeoutMs
+	}
+	if cfg.ValkeyTimeoutMs == 0 {
+		cfg.ValkeyTimeoutMs = defaultFile().ValkeyTimeoutMs
+	}
+	if cfg.SessionCachePositiveTtlMs == 0 {
+		cfg.SessionCachePositiveTtlMs = defaultFile().SessionCachePositiveTtlMs
+	}
+	if cfg.SessionCacheNegativeTtlMs == 0 {
+		cfg.SessionCacheNegativeTtlMs = defaultFile().SessionCacheNegativeTtlMs
+	}
+	if cfg.ValkeyPoolSize == 0 {
+		cfg.ValkeyPoolSize = defaultFile().ValkeyPoolSize
+	}
+	if cfg.ValkeyMinIdleConns == 0 {
+		cfg.ValkeyMinIdleConns = defaultFile().ValkeyMinIdleConns
+	}
+	if cfg.ValkeyPoolTimeoutMs == 0 {
+		cfg.ValkeyPoolTimeoutMs = defaultFile().ValkeyPoolTimeoutMs
 	}
 	if len(cfg.AllowedClientIps) == 0 {
 		cfg.AllowedClientIps = defaultFile().AllowedClientIps

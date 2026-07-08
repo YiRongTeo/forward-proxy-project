@@ -128,6 +128,12 @@ First existing key wins.
   "valkeyUrl": "redis://valkey:6379",
   "valkeySessionsPrefix": "sessions",
   "requireProxyAuth": true,
+  "sessionCachePositiveTtlMs": 30000,
+  "sessionCacheNegativeTtlMs": 5000,
+  "valkeyTimeoutMs": 2000,
+  "valkeyPoolSize": 50,
+  "valkeyMinIdleConns": 10,
+  "valkeyPoolTimeoutMs": 2000,
   "publicDomains": [],
   "proxyPort": 8081,
   "adminPort": 9001
@@ -138,6 +144,12 @@ First existing key wins.
 |-------|-------------|
 | `valkeySessionsPrefix` | Key prefix (default `sessions`) |
 | `requireProxyAuth` | When `true`, require `Proxy-Authorization` username and matching domain key. When `false`, open relay after IP check. |
+| `sessionCachePositiveTtlMs` | In-memory TTL for allowed auth results and positive key lookups (default `30000`) |
+| `sessionCacheNegativeTtlMs` | In-memory TTL for denied auth results and negative key lookups (default `5000`) |
+| `valkeyTimeoutMs` | Per-request Valkey lookup deadline in ms (default `2000`) |
+| `valkeyPoolSize` | go-redis connection pool size (default `50`) |
+| `valkeyMinIdleConns` | Minimum idle Valkey connections (default `10`) |
+| `valkeyPoolTimeoutMs` | Max wait for a pooled Valkey connection (default `2000`) |
 | `publicDomains` | Hosts that skip auth after IP check (`authMode: "public"`) |
 
 **Local run:**

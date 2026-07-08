@@ -29,6 +29,12 @@
   ],
   "trustProxyHeaders": false,
   "valkeySessionsPrefix": "sessions",
+  "sessionCachePositiveTtlMs": 30000,
+  "sessionCacheNegativeTtlMs": 5000,
+  "valkeyTimeoutMs": 2000,
+  "valkeyPoolSize": 50,
+  "valkeyMinIdleConns": 10,
+  "valkeyPoolTimeoutMs": 2000,
   "requireProxyAuth": true,
   "publicDomains": [],
   "tls": {

@@ -24,6 +24,7 @@ type Config struct {
 	PublicDomains     []string
 	RequireProxyAuth  bool
 	Timeout           time.Duration
+	ValkeyTimeout     time.Duration
 }
 
 type authResult struct {
@@ -64,7 +65,10 @@ func (c *Config) authorize(r *http.Request, remoteAddr, requestedHost string) au
 		return authResult{ok: false, status: http.StatusProxyAuthRequired, errorCode: "missing_credentials", requestedHost: requestedHost, authRequired: true}
 	}
 
-	matchedDomain, err := c.SessionStore.AuthorizeDomain(context.Background(), userSessionID, requestedHost)
+	ctx, cancel := context.WithTimeout(r.Context(), c.ValkeyTimeout)
+	defer cancel()
+
+	matchedDomain, err := c.SessionStore.AuthorizeDomain(ctx, userSessionID, requestedHost)
 	if err != nil {
 		switch {
 		case errors.Is(err, session.ErrDomainNotAllowed):
@@ -163,7 +167,10 @@ func (c *Config) HandleConnect(w http.ResponseWriter, r *http.Request) {
 
 	if !auth.ok {
 		if auth.authRequired {
-			_ = proxyutil.WriteConnectProxyAuthRequiredRaw(clientConn)
+			_ = proxyutil.WriteRawResponse(clientConn, http.StatusProxyAuthRequired, "Proxy Authentication Required", map[string]string{
+				"Proxy-Authenticate": `Basic realm="forward-proxy"`,
+				"Content-Length":     "0",
+			}, nil)
 		} else {
 			body := map[string]interface{}{
 				"error":         auth.errorCode,

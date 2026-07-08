@@ -11,6 +11,12 @@
   "proxyPort": 8081,
   "adminPort": 9001,
   "proxyTimeoutMs": 30000,
+  "valkeyTimeoutMs": 2000,
+  "sessionCachePositiveTtlMs": 30000,
+  "sessionCacheNegativeTtlMs": 5000,
+  "valkeyPoolSize": 50,
+  "valkeyMinIdleConns": 10,
+  "valkeyPoolTimeoutMs": 2000,
   "allowedClientIps": [
     "127.0.0.1",
     "::1",

@@ -46,7 +46,16 @@ func main() {
 
 	tls := tlsconfig.Load(cfg.TLS)
 
-	store, err := session.NewStore(cfg.Valkey, cfg.ValkeySessionsPrefix)
+	store, err := session.NewStore(cfg.Valkey, session.StoreOptions{
+		SessionsPrefix:   cfg.ValkeySessionsPrefix,
+		PositiveCacheTTL: time.Duration(cfg.SessionCachePositiveTtlMs) * time.Millisecond,
+		NegativeCacheTTL: time.Duration(cfg.SessionCacheNegativeTtlMs) * time.Millisecond,
+		Client: session.ClientOptions{
+			PoolSize:     cfg.ValkeyPoolSize,
+			MinIdleConns: cfg.ValkeyMinIdleConns,
+			PoolTimeout:  time.Duration(cfg.ValkeyPoolTimeoutMs) * time.Millisecond,
+		},
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -64,6 +73,7 @@ func main() {
 		PublicDomains:     cfg.PublicDomains,
 		RequireProxyAuth:  cfg.RequireProxyAuth,
 		Timeout:           time.Duration(cfg.ProxyTimeoutMs) * time.Millisecond,
+		ValkeyTimeout:     time.Duration(cfg.ValkeyTimeoutMs) * time.Millisecond,
 	}
 
 	proxyPort := strconv.Itoa(cfg.ProxyPort)
