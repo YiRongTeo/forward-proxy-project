@@ -3,17 +3,52 @@ package session
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 	"go-proxy/internal/config"
 	"go-proxy/internal/valkeytls"
 )
 
-func NewValkeyClient(valkey config.Valkey) (*redis.Client, error) {
+type ClientOptions struct {
+	PoolSize        int
+	MinIdleConns    int
+	PoolTimeout     time.Duration
+}
+
+func defaultClientOptions(opts ClientOptions) ClientOptions {
+	if opts.PoolSize <= 0 {
+		opts.PoolSize = 50
+	}
+	if opts.MinIdleConns <= 0 {
+		opts.MinIdleConns = 10
+	}
+	if opts.PoolTimeout <= 0 {
+		opts.PoolTimeout = 2 * time.Second
+	}
+	return opts
+}
+
+func applyPoolOptions(poolSize, minIdle int, poolTimeout time.Duration) (int, int, time.Duration) {
+	opts := defaultClientOptions(ClientOptions{
+		PoolSize:     poolSize,
+		MinIdleConns: minIdle,
+		PoolTimeout:  poolTimeout,
+	})
+	return opts.PoolSize, opts.MinIdleConns, opts.PoolTimeout
+}
+
+func NewValkeyClient(valkey config.Valkey, clientOpts ClientOptions) (*redis.Client, error) {
 	tlsCfg, err := valkeytls.Build(valkey.TLS)
 	if err != nil {
 		return nil, err
 	}
+
+	poolSize, minIdle, poolTimeout := applyPoolOptions(
+		clientOpts.PoolSize,
+		clientOpts.MinIdleConns,
+		clientOpts.PoolTimeout,
+	)
 
 	if valkey.UseSentinel() {
 		return redis.NewFailoverClient(&redis.FailoverOptions{
@@ -23,6 +58,9 @@ func NewValkeyClient(valkey config.Valkey) (*redis.Client, error) {
 			SentinelPassword: valkey.Sentinel.SentinelPassword,
 			DB:               valkey.Sentinel.DB,
 			TLSConfig:        tlsCfg,
+			PoolSize:         poolSize,
+			MinIdleConns:     minIdle,
+			PoolTimeout:      poolTimeout,
 		}), nil
 	}
 
@@ -33,6 +71,9 @@ func NewValkeyClient(valkey config.Valkey) (*redis.Client, error) {
 	if tlsCfg != nil {
 		opt.TLSConfig = tlsCfg
 	}
+	opt.PoolSize = poolSize
+	opt.MinIdleConns = minIdle
+	opt.PoolTimeout = poolTimeout
 	return redis.NewClient(opt), nil
 }
 
